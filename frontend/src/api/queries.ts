@@ -1,0 +1,282 @@
+import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
+import {
+  api,
+  RequestFailed,
+  unwrap,
+  uploadDocument,
+  type ActivityRow,
+  type AgreementPreview,
+  type ChecklistView,
+  type DemoInfo,
+  type InvitationPreview,
+  type ProfileBody,
+  type ProgramRecord,
+  type Session,
+  type SupplierDetail,
+  type SupplierProfile,
+  type SupplierSummary,
+  type SupplierUser,
+} from './client'
+
+/**
+ * Query keys, in one place.
+ *
+ * The invalidations below are the mechanism behind a product promise: ops and
+ * the supplier must never see different answers about the same document. A
+ * mutation that changes a document invalidates every view derived from it, so
+ * neither side is left reading a cached version of a truth that has moved.
+ */
+export const keys = {
+  session: ['session'] as const,
+  demo: ['demo-accounts'] as const,
+  programs: ['programs'] as const,
+  suppliers: ['suppliers'] as const,
+  supplier: (id: string) => ['supplier', id] as const,
+  checklist: (id: string) => ['checklist', id] as const,
+  activity: (id: string) => ['activity', id] as const,
+  supplierUsers: (id: string) => ['supplier-users', id] as const,
+  invitation: (token: string) => ['invitation', token] as const,
+  agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
+}
+
+/** `null` means "signed out", which is an answer rather than a failure. */
+export function useSession(): UseQueryResult<Session | null> {
+  return useQuery({
+    queryKey: keys.session,
+    retry: false,
+    staleTime: 30_000,
+    queryFn: async () => {
+      try {
+        return unwrap(await api.GET('/api/auth/session'))
+      } catch (error) {
+        if (error instanceof RequestFailed && error.status === 401) return null
+        throw error
+      }
+    },
+  })
+}
+
+export function useDemoAccounts(): UseQueryResult<DemoInfo | null> {
+  return useQuery({
+    queryKey: keys.demo,
+    retry: false,
+    staleTime: Infinity,
+    queryFn: async () => {
+      try {
+        return unwrap(await api.GET('/api/demo/accounts'))
+      } catch {
+        // Demo mode is off in this environment; the sign-in screen simply
+        // does not offer the shortcut.
+        return null
+      }
+    },
+  })
+}
+
+export function useLogin() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { email: string; password: string }) =>
+      unwrap(await api.POST('/api/auth/login', { body })),
+    onSuccess: (session) => {
+      queryClient.setQueryData(keys.session, session)
+    },
+  })
+}
+
+export function useLogout() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      await api.POST('/api/auth/logout')
+    },
+    onSuccess: () => {
+      queryClient.clear()
+      queryClient.setQueryData(keys.session, null)
+    },
+  })
+}
+
+export function useRequestPasswordReset() {
+  return useMutation({
+    mutationFn: async (body: { email: string }) =>
+      unwrap(await api.POST('/api/auth/password-reset', { body })),
+  })
+}
+
+export function useCompletePasswordReset(token: string) {
+  return useMutation({
+    mutationFn: async (body: { password: string }) =>
+      unwrap(await api.POST('/api/auth/password-reset/{token}', { params: { path: { token } }, body })),
+  })
+}
+
+export function useInvitation(token: string): UseQueryResult<InvitationPreview> {
+  return useQuery({
+    queryKey: keys.invitation(token),
+    retry: false,
+    queryFn: async () =>
+      unwrap(await api.GET('/api/invitations/{token}', { params: { path: { token } } })),
+  })
+}
+
+export function useAcceptInvitation(token: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { password: string }) =>
+      unwrap(await api.POST('/api/invitations/{token}/accept', { params: { path: { token } }, body })),
+    onSuccess: (session) => {
+      queryClient.setQueryData(keys.session, session)
+    },
+  })
+}
+
+export function useSuppliers(enabled = true): UseQueryResult<SupplierSummary[]> {
+  return useQuery({
+    queryKey: keys.suppliers,
+    enabled,
+    queryFn: async () => unwrap(await api.GET('/api/suppliers')),
+  })
+}
+
+export function useSupplier(id: string | undefined): UseQueryResult<SupplierDetail> {
+  return useQuery({
+    queryKey: keys.supplier(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async () => unwrap(await api.GET('/api/suppliers/{id}', { params: { path: { id: id! } } })),
+  })
+}
+
+export function useChecklist(id: string | undefined): UseQueryResult<ChecklistView> {
+  return useQuery({
+    queryKey: keys.checklist(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/suppliers/{id}/checklist', { params: { path: { id: id! } } })),
+  })
+}
+
+export function useActivity(id: string | undefined): UseQueryResult<ActivityRow[]> {
+  return useQuery({
+    queryKey: keys.activity(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/suppliers/{id}/activity', { params: { path: { id: id! } } })),
+  })
+}
+
+export function useSupplierUsers(id: string | undefined): UseQueryResult<SupplierUser[]> {
+  return useQuery({
+    queryKey: keys.supplierUsers(id ?? ''),
+    enabled: Boolean(id),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/suppliers/{id}/users', { params: { path: { id: id! } } })),
+  })
+}
+
+export function usePrograms(): UseQueryResult<ProgramRecord[]> {
+  return useQuery({
+    queryKey: keys.programs,
+    staleTime: 5 * 60_000,
+    queryFn: async () => unwrap(await api.GET('/api/programs')),
+  })
+}
+
+export function useProfile(id: string | undefined): UseQueryResult<SupplierProfile> {
+  return useQuery({
+    queryKey: [...keys.supplier(id ?? ''), 'profile'],
+    enabled: Boolean(id),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/suppliers/{id}/profile', { params: { path: { id: id! } } })),
+  })
+}
+
+export function useSaveProfile(supplierId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: ProfileBody) =>
+      unwrap(
+        await api.PATCH('/api/suppliers/{id}/profile', {
+          params: { path: { id: supplierId } },
+          body,
+        }),
+      ),
+    onSuccess: () => invalidateSupplier(queryClient, supplierId),
+  })
+}
+
+export function useUploadDocument(supplierId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (input: {
+      file: File
+      documentTypeCode: string
+      enrollmentId?: string | null
+      issuedOn?: string | null
+      expiresOn?: string | null
+    }) => uploadDocument({ supplierId, ...input }),
+    onSuccess: () => invalidateSupplier(queryClient, supplierId),
+  })
+}
+
+export function useAgreement(supplierId: string, documentTypeCode: string, enabled: boolean): UseQueryResult<AgreementPreview> {
+  return useQuery({
+    queryKey: keys.agreement(supplierId, documentTypeCode),
+    enabled,
+    queryFn: async () =>
+      unwrap(await api.GET('/api/documents/agreement', { params: { query: { supplierId, documentTypeCode } } })),
+  })
+}
+
+export function useSignAgreement(supplierId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { documentTypeCode: string; enrollmentId?: string | null; typedName: string }) =>
+      unwrap(
+        await api.POST('/api/documents/sign', {
+          body: { supplierId, ...body },
+        }),
+      ),
+    onSuccess: () => invalidateSupplier(queryClient, supplierId),
+  })
+}
+
+export function useCreateSupplier() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: {
+      legalName: string
+      contactName: string
+      contactEmail: string
+      programIds: string[]
+    }) => unwrap(await api.POST('/api/suppliers', { body })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.suppliers })
+    },
+  })
+}
+
+export function useResetDemo() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      await api.POST('/api/demo/reset')
+    },
+    onSuccess: () => queryClient.clear(),
+  })
+}
+
+/** Everything derived from one supplier's documents, refreshed together. */
+function invalidateSupplier(
+  queryClient: ReturnType<typeof useQueryClient>,
+  supplierId: string,
+): void {
+  void queryClient.invalidateQueries({ queryKey: keys.supplier(supplierId) })
+  void queryClient.invalidateQueries({ queryKey: keys.checklist(supplierId) })
+  void queryClient.invalidateQueries({ queryKey: keys.activity(supplierId) })
+  void queryClient.invalidateQueries({ queryKey: keys.suppliers })
+}
+
+export function documentDownloadUrl(submissionId: string): string {
+  return `/api/documents/${submissionId}/download`
+}
