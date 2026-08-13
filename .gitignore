@@ -34,6 +34,12 @@ application_default_credentials.json
 **/application-secret*.yml
 **/application-secret*.yaml
 
+# There must never be an application.properties: Spring gives .properties
+# precedence over .yml, so a stray one silently shadows the committed config.
+# Ignoring it means an accidental one at least cannot be committed and inherited
+# by everyone else.
+**/src/main/resources/application.properties
+
 # Keys, certificates and keystores in any form.
 *.pem
 *.key
@@ -41,6 +47,14 @@ application_default_credentials.json
 *.pfx
 *.jks
 *.keystore
+
+# Infrastructure state, if Terraform is ever added for the GCP resources.
+# State files routinely contain secrets in plaintext.
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
 
 # ---------------------------------------------------------------------------
 # Local data
@@ -55,11 +69,23 @@ application_default_credentials.json
 .postgres-data/
 
 # ---------------------------------------------------------------------------
+# Project documentation
+# ---------------------------------------------------------------------------
+#
+# The architecture document is internal working material and is kept out of the
+# repository by choice. Everything else under docs/ ships — in particular the
+# decision memo, which the brief names as a required deliverable.
+
+docs/architecture.md
+
+# ---------------------------------------------------------------------------
 # Operating system
 # ---------------------------------------------------------------------------
 
 .DS_Store
 ._*
+.AppleDouble
+.LSOverride
 .Spotlight-V100
 .Trashes
 Thumbs.db
@@ -82,9 +108,17 @@ desktop.ini
 # are not.
 .claude/settings.local.json
 
+.direnv/
 *.swp
 *.swo
 *~
+*.bak
+
+# Merge and rebase leftovers. Worth having while more than one session is
+# editing the same tree: these are easy to commit by accident and confusing to
+# find later.
+*.orig
+*.rej
 
 # ---------------------------------------------------------------------------
 # Build and dependency output
@@ -95,16 +129,48 @@ desktop.ini
 
 node_modules/
 dist/
+dist-ssr/
 build/
-.gradle/
-.kotlin/
 out/
+
+# Gradle
+.gradle/
+.gradletasknamecache
+gradle-app.setting
+
+# Kotlin
+.kotlin/
+
+# JVM crash and replay dumps
+*.class
+hs_err_pid*
+replay_pid*
+
+# TypeScript / Vite
+*.tsbuildinfo
+.vite/
+*.local
+
+# Package manager caches
+.npm/
+.yarn/
+.pnpm-store/
+
+# Test and coverage output
+coverage/
+*.lcov
+.nyc_output/
 
 # ---------------------------------------------------------------------------
 # Logs and transient output
 # ---------------------------------------------------------------------------
 
+logs/
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 firebase-debug.log*
 firestore-debug.log*
 .firebase/
@@ -120,3 +186,5 @@ firestore-debug.log*
 #       cloning this repo should not need Postgres up to run `npm run build`.
 #   docker-compose.yml, application.yml — non-secret defaults, and the compose
 #       credentials are local-only throwaways.
+#   backend/src/main/resources/db/migration/ — the schema is a reviewable
+#       artifact and the audit story depends on its history being visible.
