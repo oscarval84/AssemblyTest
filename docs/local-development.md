@@ -58,6 +58,40 @@ cd backend && ./gradlew bootRun --args='--server.port=8085'
 cd frontend && npm install && npm run dev
 ```
 
+Vite serves <http://localhost:5173> and proxies `/api` to the backend on 8085, so development is same-origin
+exactly as production is behind Firebase Hosting. That is what keeps the session cookie `SameSite=Lax` and CORS
+out of the picture; a proxy here rather than permissive headers is the point.
+
+The backend must be on 8085 for the proxy to find it — see the port note above.
+
+## Sign in
+
+On an empty database the backend seeds a demo world at startup and logs the shared password. The sign-in screen
+lists the accounts, and clicking one fills the form:
+
+| Role                 | Email                                | What they see                                              |
+| -------------------- | ------------------------------------ | ---------------------------------------------------------- |
+| Administrator        | `dana.whitfield@acme-msp.example`    | Everything, plus staff administration and the demo reset    |
+| Supplier operations  | `marcus.lee@acme-msp.example`        | The pipeline and the review queue                           |
+| Program manager      | `priya.raman@acme-msp.example`       | Read-only, Northstar Health System only                     |
+| Supplier             | `alicia.moore@lakesidemed.example`   | Two programs, the second mostly pre-filled                  |
+| Supplier             | `jean.pike@cedargrove.example`       | A rejected certificate, with the reason                     |
+
+The password is `Onboarding2026!` for all of them. Seeding is controlled by `acme.demo.seed-on-startup`
+(`DEMO_SEED`), which also gates the admin-only reset — both are dark in an environment holding real data.
+
+## Regenerate the API client
+
+The frontend's types come from the backend's own OpenAPI document, and the generated file is committed so a
+build never depends on a running backend. After changing a controller or a DTO:
+
+```bash
+cd frontend && npm run generate:api
+```
+
+It needs the backend running on 8085. A breaking backend change then fails `npm run typecheck` rather than
+failing in a supplier's browser.
+
 ## Inspect the database
 
 An Adminer instance is available behind an opt-in profile, so it never starts as part of the normal `up`:
@@ -79,8 +113,12 @@ docker exec -it acme-postgres psql -U acme -d acme_onboarding
 docker compose down -v && docker compose up -d
 ```
 
-`-v` drops the volume, so the next start is an empty database that Flyway migrates from scratch. This is the
-fastest way back to a clean demo state.
+`-v` drops the volume, so the next start is an empty database that Flyway migrates from scratch and re-seeds.
+An administrator can also restore the demo world from inside the app, which is faster and does not restart
+anything.
+
+Uploaded files live outside the database, under `backend/.local-storage`, and are not dropped by the command
+above. Delete that directory alongside the volume for a genuinely clean slate.
 
 ## Note on database roles
 

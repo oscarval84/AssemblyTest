@@ -46,6 +46,10 @@ acme:
   # this value; it must never be hardcoded in query or job logic.
   business-time-zone: ${BUSINESS_TIME_ZONE:America/New_York}
 
+  # Where the supplier portal lives, for links inside invitation and reminder
+  # emails. Same origin as the API in every environment (§1).
+  portal-base-url: ${PORTAL_BASE_URL:http://localhost:5173}
+
   compliance:
     # Days before expiry at which a document enters the warning band.
     expiry-warning-days: 30
@@ -55,6 +59,9 @@ acme:
     # the primary access-control lever.
     ttl: 12h
     cookie-name: ACME_SESSION
+    # False only for local HTTP development. Deployed environments are HTTPS
+    # behind Firebase Hosting and set this true.
+    cookie-secure: ${SESSION_COOKIE_SECURE:false}
 
   invitation:
     ttl: 7d
@@ -80,6 +87,23 @@ acme:
     transport: ${MAIL_TRANSPORT:outbox-only}
     from-address: ${MAIL_FROM:no-reply@acme-msp.example}
     from-name: Acme Supplier Operations
+
+  agreement:
+    # Bumped whenever the agreement text changes. Stored on every signature, so
+    # "which text did they actually agree to" survives the next revision.
+    template-version: ${AGREEMENT_TEMPLATE_VERSION:2026.1}
+
+  security:
+    # Field-level encryption for Restricted values — today the tax ID. Deployed
+    # environments read both from Secret Manager; the local defaults exist so
+    # development needs no secrets, and they protect nothing.
+    field-encryption-key: ${FIELD_ENCRYPTION_KEY:local-development-only}
+    field-encryption-salt: ${FIELD_ENCRYPTION_SALT:9a1c4f3b7d2e8056}
+
+  demo:
+    # Seeds the demo world on an empty database and enables the admin-only reset.
+    # Off in any environment holding real supplier data.
+    seed-on-startup: ${DEMO_SEED:true}
 
   ai:
     # COI extraction only. The W-9 path exists but stays off until Acme signs off

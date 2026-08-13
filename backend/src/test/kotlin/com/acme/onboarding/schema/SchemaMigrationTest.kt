@@ -24,7 +24,9 @@ import kotlin.test.assertTrue
  * application happens not to issue UPDATEs is a comment, not a control.
  */
 @Testcontainers
-@SpringBootTest
+// Demo seeding off: this asserts what the schema enforces, and a seeded world
+// would have it counting rows the migrations did not create.
+@SpringBootTest(properties = ["acme.demo.seed-on-startup=false"])
 class SchemaMigrationTest {
 
     companion object {
@@ -45,7 +47,7 @@ class SchemaMigrationTest {
             "SELECT version, success FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
         )
 
-        assertEquals(listOf("1", "2", "3"), applied.map { it["version"] })
+        assertEquals(listOf("1", "2", "3", "4"), applied.map { it["version"] })
         assertTrue(applied.all { it["success"] == true })
     }
 

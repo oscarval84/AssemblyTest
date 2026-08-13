@@ -1,122 +1,101 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import CircularProgress from '@mui/material/CircularProgress'
+import Stack from '@mui/material/Stack'
+import { ThemeProvider } from '@mui/material/styles'
+import CssBaseline from '@mui/material/CssBaseline'
+import { Suspense, lazy } from 'react'
+import { Navigate, Outlet, Route, Routes } from 'react-router-dom'
+import { useSession } from './api/queries'
+import { SurfaceLayout } from './app/Shell'
+import AcceptInvitationPage from './features/auth/AcceptInvitationPage'
+import LoginPage from './features/auth/LoginPage'
+import ResetPasswordPage from './features/auth/ResetPasswordPage'
+import { homeFor } from './features/auth/routing'
+import { acmeTheme } from './theme/theme'
 
-function App() {
-  const [count, setCount] = useState(0)
+/**
+ * Two route groups over one build.
+ *
+ * The ops console is loaded lazily so a supplier's browser never downloads it —
+ * the concrete cost of sharing one application, paid for at the route boundary
+ * rather than argued about.
+ */
+const PortalHome = lazy(() => import('./features/supplier/PortalHome'))
+const PortalProfile = lazy(() => import('./features/supplier/PortalProfile'))
+const OpsSuppliers = lazy(() => import('./features/ops/SuppliersPage'))
+const OpsSupplierDetail = lazy(() => import('./features/ops/SupplierDetailPage'))
 
+export default function App() {
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+    <Suspense fallback={<FullPageSpinner />}>
+      <Routes>
+        {/* Signed out, and still Acme's brand surface — these pages are the
+            first thing an invited supplier ever sees of the company. */}
+        <Route element={<PublicSurface />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/invitation/:token" element={<AcceptInvitationPage />} />
+          <Route path="/reset-password/:token" element={<ResetPasswordPage />} />
+        </Route>
+
+        <Route
+          element={
+            <SurfaceLayout
+              surface="supplier"
+              allow={['SUPPLIER_USER']}
+              nav={[
+                { label: 'Onboarding', to: '/portal' },
+                { label: 'Company profile', to: '/portal/profile' },
+              ]}
+            />
+          }
         >
-          Count is {count}
-        </button>
-      </section>
+          <Route path="/portal" element={<PortalHome />} />
+          {/* The address in our emails; kept as an alias so those links never rot. */}
+          <Route path="/portal/documents" element={<PortalHome />} />
+          <Route path="/portal/profile" element={<PortalProfile />} />
+        </Route>
 
-      <div className="ticks"></div>
+        <Route
+          element={
+            <SurfaceLayout
+              surface="ops"
+              allow={['ADMIN', 'OPS', 'PROGRAM_MANAGER']}
+              nav={[{ label: 'Pipeline', to: '/ops' }]}
+            />
+          }
+        >
+          <Route path="/ops" element={<OpsSuppliers />} />
+          <Route path="/ops/suppliers/:id" element={<OpsSupplierDetail />} />
+        </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <Route path="*" element={<LandingRedirect />} />
+      </Routes>
+    </Suspense>
   )
 }
 
-export default App
+function PublicSurface() {
+  return (
+    <ThemeProvider theme={acmeTheme('supplier')}>
+      <CssBaseline />
+      <Outlet />
+    </ThemeProvider>
+  )
+}
+
+/** Sends everyone to the surface they belong on, including from a stale URL. */
+function LandingRedirect() {
+  const session = useSession()
+  if (session.isPending) return <FullPageSpinner />
+  return <Navigate to={session.data ? homeFor(session.data.role) : '/login'} replace />
+}
+
+function FullPageSpinner() {
+  return (
+    <ThemeProvider theme={acmeTheme('supplier')}>
+      <CssBaseline />
+      <Stack sx={{ alignItems: 'center', justifyContent: 'center', minHeight: '100dvh' }}>
+        <CircularProgress size={28} />
+      </Stack>
+    </ThemeProvider>
+  )
+}

@@ -78,6 +78,45 @@ object OnboardingTransitions {
         allowed.getOrDefault(from, emptySet())
 
     /**
+     * The shortest legal route from one stage to another, excluding [from].
+     *
+     * Some events imply more than one move — a supplier who fills in their
+     * profile and immediately uploads their last document has gone from
+     * `PROFILE_SUBMITTED` to `IN_REVIEW`, through a stage nobody saw. Walking the
+     * route records each step, so the timeline shows what happened instead of a
+     * jump that the transition table does not permit.
+     *
+     * Returns null when no route exists, which callers must treat as a bug
+     * rather than as "close enough".
+     */
+    fun path(from: OnboardingStage, to: OnboardingStage): List<OnboardingStage>? {
+        if (from == to) return emptyList()
+
+        val previous = mutableMapOf<OnboardingStage, OnboardingStage>()
+        val queue = ArrayDeque(listOf(from))
+        val seen = mutableSetOf(from)
+
+        while (queue.isNotEmpty()) {
+            val stage = queue.removeFirst()
+            for (next in nextStages(stage)) {
+                if (!seen.add(next)) continue
+                previous[next] = stage
+                if (next == to) {
+                    val route = mutableListOf(to)
+                    var cursor = to
+                    while (cursor != from) {
+                        cursor = previous.getValue(cursor)
+                        if (cursor != from) route.add(cursor)
+                    }
+                    return route.reversed()
+                }
+                queue.addLast(next)
+            }
+        }
+        return null
+    }
+
+    /**
      * @throws IllegalStageTransition if the move is not legal. Callers are
      * expected to let this propagate: a rejected transition is a bug or a
      * concurrent edit, never something to paper over.

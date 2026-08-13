@@ -1,0 +1,64 @@
+ACME INC. — MASTER SUPPLIER AGREEMENT
+Template version {{templateVersion}}
+
+This Master Supplier Agreement is entered into between Acme Inc. ("Acme"), a managed
+service provider, and {{companyLegalName}} ("Supplier").
+
+1. SCOPE
+Supplier may be engaged to provide contingent staffing services to Acme's client
+programs. Each engagement is governed by this agreement together with the terms of
+the specific program under which the placement is made.
+
+2. INDEPENDENT CONTRACTOR RELATIONSHIP
+Supplier is an independent contractor. Nothing in this agreement creates an
+employment, partnership or joint venture relationship between the parties, and
+Supplier is solely responsible for its own personnel.
+
+3. INSURANCE
+Supplier shall maintain, at its own expense, the coverage required by each program
+into which it is enrolled, and shall provide a current certificate of insurance
+naming Acme as an additional insured. Supplier shall notify Acme in writing before
+any lapse, cancellation or material reduction in coverage.
+
+4. WORKER ELIGIBILITY AND SCREENING
+Supplier warrants that every worker it places is legally authorised to work in the
+United States and has been screened to the standard required by the applicable
+program.
+
+5. CONFIDENTIALITY
+Each party shall protect the other's confidential information with no less care
+than it applies to its own, and shall use it only to perform this agreement. This
+obligation survives termination.
+
+6. DATA PROTECTION
+Supplier shall process personal information received under this agreement only as
+necessary to provide the services, and shall notify Acme without undue delay of any
+unauthorised access to that information.
+
+7. INVOICING AND PAYMENT
+Supplier shall invoice through the process specified by the applicable program.
+Acme shall pay undisputed amounts within the terms stated in that program.
+
+8. RECORDS AND AUDIT
+Supplier shall retain records substantiating its performance and its compliance
+with this agreement, and shall make them available to Acme on reasonable notice.
+Acme's own clients may audit these records through Acme.
+
+9. COMPLIANCE WITH LAW
+Supplier shall comply with all applicable federal, state and local laws, including
+wage and hour, anti-discrimination and worker classification requirements.
+
+10. TERM AND TERMINATION
+This agreement begins on the date of signature below and continues until terminated
+by either party on thirty (30) days' written notice. Obligations relating to active
+placements, confidentiality and records survive termination.
+
+11. ENTIRE AGREEMENT
+This agreement, together with the program terms it references, is the entire
+agreement between the parties on this subject and supersedes prior discussions.
+
+12. ELECTRONIC SIGNATURE
+The parties agree that this agreement may be executed electronically, and that a
+typed name submitted through Acme's supplier onboarding platform, together with the
+recorded identity, timestamp and originating address of the signer, constitutes a
+binding signature.
