@@ -22,6 +22,8 @@ import { acmeTheme, type Surface } from '../theme/theme'
 interface NavItem {
   label: string
   to: string
+  /** Omitted means everyone on this surface. A link nobody may follow is a dead end. */
+  roles?: Role[]
 }
 
 /**
@@ -71,7 +73,9 @@ export function SurfaceLayout({
             <Brand surface={surface} />
 
             <Stack direction="row" spacing={0.5} sx={{ flexGrow: 1 }}>
-              {nav.map((item) => (
+              {nav
+                .filter((item) => !item.roles || item.roles.includes(session.data!.role))
+                .map((item) => (
                 <Button
                   key={item.to}
                   component={RouterLink}
@@ -82,7 +86,7 @@ export function SurfaceLayout({
                 >
                   {item.label}
                 </Button>
-              ))}
+                ))}
             </Stack>
 
             <AccountMenu

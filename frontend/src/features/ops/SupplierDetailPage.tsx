@@ -1,5 +1,6 @@
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CircularProgress from '@mui/material/CircularProgress'
@@ -7,14 +8,17 @@ import Divider from '@mui/material/Divider'
 import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import { useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import {
   documentDownloadUrl,
   useActivity,
   useChecklist,
+  useSession,
   useSupplier,
   useSupplierUsers,
 } from '../../api/queries'
+import ReviewDialog, { type ReviewTarget } from './ReviewDialog'
 import { EmptyState, Field, PageHeader, StatusChip } from '../../components/common'
 import { formatDate, formatDateTime, formatExpiry } from '../../lib/format'
 import {
@@ -35,7 +39,10 @@ import {
  */
 export default function SupplierDetailPage() {
   const { id } = useParams()
+  const session = useSession()
   const supplier = useSupplier(id)
+  const [reviewing, setReviewing] = useState<ReviewTarget | null>(null)
+  const canReview = session.data?.role === 'OPS' || session.data?.role === 'ADMIN'
   const checklist = useChecklist(id)
   const activity = useActivity(id)
   const users = useSupplierUsers(id)
@@ -202,7 +209,35 @@ export default function SupplierDetailPage() {
                               </Typography>
                             )}
                           </Box>
-                          <StatusChip label={entryLook.label} color={entryLook.color} />
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <StatusChip label={entryLook.label} color={entryLook.color} />
+                            {canReview && entry.state === 'IN_REVIEW' && entry.submission ? (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={() =>
+                                  setReviewing({
+                                    submissionId: entry.submission!.id,
+                                    supplierId: profile.id,
+                                    supplierLegalName: profile.legalName,
+                                    documentTypeName: entry.documentTypeName,
+                                    originalFilename: entry.submission!.originalFilename,
+                                    sizeBytes: entry.submission!.sizeBytes,
+                                    version: entry.submission!.version,
+                                    uploadedAt: entry.submission!.uploadedAt,
+                                    uploadedByName: entry.submission!.uploadedByName,
+                                    issuedOn: entry.submission!.issuedOn,
+                                    expiresOn: entry.submission!.expiresOn,
+                                    // The server refuses if this reviewer uploaded
+                                    // it, with a message worth reading.
+                                    reviewableByCaller: true,
+                                  })
+                                }
+                              >
+                                Review
+                              </Button>
+                            ) : null}
+                          </Stack>
                         </Stack>
                       )
                     })}
@@ -275,6 +310,8 @@ export default function SupplierDetailPage() {
           </Typography>
         </Stack>
       </Stack>
+
+      {reviewing ? <ReviewDialog target={reviewing} open onClose={() => setReviewing(null)} /> : null}
     </>
   )
 }

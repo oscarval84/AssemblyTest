@@ -82,4 +82,46 @@ class StageProgression(
 
         return moveTo(supplier, target, actor)
     }
+
+    /**
+     * Where a supplier belongs after ops has ruled on one of their documents.
+     *
+     * A rejection is not the same event as a document going missing, and the
+     * stage has to say so. `CHANGES_REQUESTED` means "we looked, and we are
+     * handing this back" — the supplier is owed an explanation and knows exactly
+     * what to fix. It is only reachable from `IN_REVIEW`, which is correct: a
+     * supplier still assembling their paperwork stays in
+     * `DOCUMENTS_IN_PROGRESS`, because nothing has been handed back to them that
+     * they were not already working on.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun afterReview(
+        snapshot: SupplierAssembler.Snapshot,
+        actor: Actor?,
+        rejected: Boolean,
+    ): OnboardingStage {
+        val supplier = snapshot.supplier
+
+        if (rejected) {
+            return if (supplier.stage == OnboardingStage.IN_REVIEW) {
+                moveTo(supplier, OnboardingStage.CHANGES_REQUESTED, actor)
+            } else {
+                supplier.stage
+            }
+        }
+
+        val outstanding = snapshot.allFindings.any {
+            it.issue == Issue.MISSING || it.issue == Issue.REJECTED || it.issue == Issue.EXPIRED
+        }
+        val awaitingReview = snapshot.allFindings.any { it.issue == Issue.PENDING_REVIEW }
+
+        // Approving the last outstanding document is what finishes onboarding.
+        // Nothing else in the system decides this, and no scheduled job does it
+        // later: the supplier is approved the moment the last review lands.
+        return if (!outstanding && !awaitingReview && supplier.stage == OnboardingStage.IN_REVIEW) {
+            moveTo(supplier, OnboardingStage.APPROVED, actor)
+        } else {
+            supplier.stage
+        }
+    }
 }

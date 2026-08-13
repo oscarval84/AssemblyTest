@@ -9,8 +9,11 @@ import {
   type ChecklistView,
   type DemoInfo,
   type InvitationPreview,
+  type OutboxView,
   type ProfileBody,
   type ProgramRecord,
+  type RejectionReason,
+  type ReviewQueueItem,
   type Session,
   type SupplierDetail,
   type SupplierProfile,
@@ -36,6 +39,9 @@ export const keys = {
   activity: (id: string) => ['activity', id] as const,
   supplierUsers: (id: string) => ['supplier-users', id] as const,
   invitation: (token: string) => ['invitation', token] as const,
+  reviewQueue: ['review-queue'] as const,
+  rejectionReasons: ['rejection-reasons'] as const,
+  outbox: ['outbox'] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
 
@@ -275,6 +281,59 @@ function invalidateSupplier(
   void queryClient.invalidateQueries({ queryKey: keys.checklist(supplierId) })
   void queryClient.invalidateQueries({ queryKey: keys.activity(supplierId) })
   void queryClient.invalidateQueries({ queryKey: keys.suppliers })
+}
+
+export function useReviewQueue(enabled = true): UseQueryResult<ReviewQueueItem[]> {
+  return useQuery({
+    queryKey: keys.reviewQueue,
+    enabled,
+    queryFn: async () => unwrap(await api.GET('/api/documents/review-queue')),
+  })
+}
+
+export function useRejectionReasons(): UseQueryResult<RejectionReason[]> {
+  return useQuery({
+    queryKey: keys.rejectionReasons,
+    staleTime: 5 * 60_000,
+    queryFn: async () => unwrap(await api.GET('/api/documents/rejection-reasons')),
+  })
+}
+
+export function useOutbox(enabled = true): UseQueryResult<OutboxView> {
+  return useQuery({
+    queryKey: keys.outbox,
+    enabled,
+    queryFn: async () => unwrap(await api.GET('/api/outbox')),
+  })
+}
+
+/**
+ * A review changes the supplier's stage, their checklist, the pipeline and the
+ * outbox at once, so all of them are invalidated together. Ops and the supplier
+ * seeing different answers after a decision is the specific failure this
+ * product exists to remove.
+ */
+export function useReviewDecision(supplierId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { submissionId: string; reasonCode?: string; note?: string | null }) => {
+      if (input.reasonCode) {
+        await api.POST('/api/documents/{id}/reject', {
+          params: { path: { id: input.submissionId } },
+          body: { reasonCode: input.reasonCode, note: input.note ?? null },
+        }).then(unwrap)
+      } else {
+        await api.POST('/api/documents/{id}/approve', {
+          params: { path: { id: input.submissionId } },
+        }).then(unwrap)
+      }
+    },
+    onSuccess: () => {
+      invalidateSupplier(queryClient, supplierId)
+      void queryClient.invalidateQueries({ queryKey: keys.reviewQueue })
+      void queryClient.invalidateQueries({ queryKey: keys.outbox })
+    },
+  })
 }
 
 export function documentDownloadUrl(submissionId: string): string {

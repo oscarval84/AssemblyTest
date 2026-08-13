@@ -73,6 +73,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand a document back with a reason the supplier can act on */
+        post: operations["reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept a document; approving the last one completes onboarding */
+        post: operations["approve"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/sign": {
         parameters: {
             query?: never;
@@ -380,6 +414,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every notification the system has queued, newest first */
+        get: operations["list_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invitations/{token}": {
         parameters: {
             query?: never;
@@ -406,6 +457,40 @@ export interface paths {
         };
         /** Fetch a document, recording who read it */
         get: operations["download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Documents waiting on Acme, oldest first */
+        get: operations["reviewQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/rejection-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The reason catalog, so rejecting is one click rather than a blank box */
+        get: operations["rejectionReasons"];
         put?: never;
         post?: never;
         delete?: never;
@@ -473,7 +558,7 @@ export interface paths {
             cookie?: never;
         };
         /** The access report: every internal user, role, scope and last sign-in */
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         post?: never;
         delete?: never;
@@ -586,6 +671,10 @@ export interface components {
             supplierId?: string | null;
             supplierName?: string | null;
             programIds: string[];
+        };
+        RejectBody: {
+            reasonCode: string;
+            note?: string | null;
         };
         SignBody: {
             /** Format: uuid */
@@ -756,6 +845,30 @@ export interface components {
             description?: string | null;
             active: boolean;
         };
+        OutboxEntry: {
+            /** Format: uuid */
+            id: string;
+            template: string;
+            recipientEmail: string;
+            recipientName?: string | null;
+            subject: string;
+            bodyText: string;
+            status: string;
+            /** Format: int32 */
+            attempts: number;
+            lastError?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            sentAt?: string | null;
+            /** Format: uuid */
+            supplierId?: string | null;
+            supplierLegalName?: string | null;
+        };
+        OutboxView: {
+            transport: string;
+            entries: components["schemas"]["OutboxEntry"][];
+        };
         InvitationPreview: {
             email: string;
             /** @enum {string} */
@@ -764,6 +877,36 @@ export interface components {
             organizationName: string;
             usable: boolean;
             unusableReason?: string | null;
+        };
+        ReviewQueueItem: {
+            /** Format: uuid */
+            submissionId: string;
+            /** Format: uuid */
+            supplierId: string;
+            supplierLegalName: string;
+            documentTypeCode: string;
+            documentTypeName: string;
+            classification: string;
+            programNames: string[];
+            /** Format: int32 */
+            version: number;
+            originalFilename: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date */
+            issuedOn?: string | null;
+            /** Format: date */
+            expiresOn?: string | null;
+            /** Format: date-time */
+            uploadedAt: string;
+            uploadedByName?: string | null;
+            /** Format: int64 */
+            waitingDays: number;
+            reviewableByCaller: boolean;
+        };
+        RejectionReasonRecord: {
+            code: string;
+            label: string;
         };
         AgreementPreview: {
             templateVersion: string;
@@ -935,6 +1078,50 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["SessionDescription"];
                 };
+            };
+        };
+    };
+    reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1360,6 +1547,28 @@ export interface operations {
             };
         };
     };
+    list_2: {
+        parameters: {
+            query?: {
+                supplierId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OutboxView"];
+                };
+            };
+        };
+    };
     preview: {
         parameters: {
             query?: never;
@@ -1400,6 +1609,46 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    reviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReviewQueueItem"][];
+                };
+            };
+        };
+    };
+    rejectionReasons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RejectionReasonRecord"][];
                 };
             };
         };
@@ -1467,7 +1716,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: never;
             header?: never;
