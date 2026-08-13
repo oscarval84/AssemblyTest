@@ -1,0 +1,109 @@
+spring:
+  application:
+    name: acme-supplier-onboarding
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/acme_onboarding}
+    username: ${DATABASE_USER:acme}
+    password: ${DATABASE_PASSWORD:acme}
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # Flyway owns the schema. Hibernate must never touch it — a schema that
+      # drifts from its migrations is unauditable.
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    # Names the database role the application connects as, so V2 can restrict it
+    # to INSERT/SELECT on activity_event. Unset in local development, where the
+    # append-only trigger carries the enforcement on its own.
+    placeholders:
+      appDbRole: ${APP_DB_ROLE:}
+
+  servlet:
+    multipart:
+      # 10 MB per file. Cloud Run's 32 MB request ceiling is the hard limit; this
+      # is the product decision. A real W-9 or certificate is under 2 MB.
+      max-file-size: 10MB
+      max-request-size: 12MB
+
+server:
+  # Cloud Run supplies PORT.
+  port: ${PORT:8080}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+acme:
+  # Every compliance date is resolved in this zone. An MSP that expands changes
+  # this value; it must never be hardcoded in query or job logic.
+  business-time-zone: ${BUSINESS_TIME_ZONE:America/New_York}
+
+  compliance:
+    # Days before expiry at which a document enters the warning band.
+    expiry-warning-days: 30
+
+  session:
+    # Sliding expiry; revocation is a DELETE, so this is a ceiling rather than
+    # the primary access-control lever.
+    ttl: 12h
+    cookie-name: ACME_SESSION
+
+  invitation:
+    ttl: 7d
+
+  password-reset:
+    ttl: 1h
+
+  storage:
+    # GCS in every deployed environment; a local filesystem adapter keeps
+    # development free of cloud credentials.
+    provider: ${STORAGE_PROVIDER:local}
+    bucket: ${STORAGE_BUCKET:}
+    local-path: ${STORAGE_LOCAL_PATH:./.local-storage}
+    signed-url-ttl: 5m
+    allowed-content-types:
+      - application/pdf
+      - image/png
+      - image/jpeg
+
+  mail:
+    # The outbox is always written. This selects what drains it: `outbox-only`
+    # keeps everything inspectable in-product, which is the demo posture.
+    transport: ${MAIL_TRANSPORT:outbox-only}
+    from-address: ${MAIL_FROM:no-reply@acme-msp.example}
+    from-name: Acme Supplier Operations
+
+  ai:
+    # COI extraction only. The W-9 path exists but stays off until Acme signs off
+    # on routing taxpayer identification numbers to an external processor.
+    extraction-enabled: ${AI_EXTRACTION_ENABLED:true}
+    w9-extraction-enabled: ${AI_W9_EXTRACTION_ENABLED:false}
+    model: claude-opus-5
+
+springdoc:
+  api-docs:
+    path: /api/openapi.json
+  swagger-ui:
+    path: /api/docs
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+logging:
+  level:
+    com.acme.onboarding: ${LOG_LEVEL:INFO}

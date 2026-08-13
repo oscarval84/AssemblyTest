@@ -1,0 +1,48 @@
+# Local development dependencies only. Production runs on Cloud SQL — see docs/architecture.md.
+name: acme-onboarding
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: acme-postgres
+    environment:
+      # Matches the local defaults in backend/src/main/resources/application.yml.
+      POSTGRES_DB: acme_onboarding
+      POSTGRES_USER: acme
+      POSTGRES_PASSWORD: acme
+      # Deterministic sort order regardless of the host locale, so ORDER BY here
+      # matches ORDER BY on Cloud SQL.
+      POSTGRES_INITDB_ARGS: --encoding=UTF8 --locale=C
+      # Event timestamps are stored as UTC instants; keep the server session in UTC
+      # so psql shows the stored value rather than a host-local rendering.
+      TZ: UTC
+      PGTZ: UTC
+    ports:
+      # Bound to loopback: the development database is never reachable from the network.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U acme -d acme_onboarding"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+
+  # Opt-in database browser: docker compose --profile tools up -d
+  adminer:
+    image: adminer:5
+    container_name: acme-adminer
+    profiles: ["tools"]
+    environment:
+      ADMINER_DEFAULT_SERVER: postgres
+    ports:
+      - "127.0.0.1:8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres-data:

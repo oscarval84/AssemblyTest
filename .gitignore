@@ -1,0 +1,122 @@
+# Root ignore rules for the Acme supplier onboarding monorepo.
+#
+# backend/.gitignore and frontend/.gitignore already cover their own build
+# artifacts. This file covers what crosses both: operating-system noise, editor
+# state, and — the part that matters — anything whose leak would be an incident.
+
+# ---------------------------------------------------------------------------
+# Secrets and credentials
+# ---------------------------------------------------------------------------
+#
+# This system holds tax and banking documents, and the client explicitly said a
+# past vendor was careless with sensitive data. These patterns are deliberately
+# broad: a false positive costs a `git add -f`, a false negative costs a
+# credential rotation and an awkward conversation.
+
+.env
+.env.*
+!.env.example
+
+# Google Cloud service account keys. CI authenticates through Workload Identity
+# Federation precisely so these never need to exist, but a key downloaded during
+# debugging must not be one `git add .` away from the history.
+*service-account*.json
+*service_account*.json
+*-sa.json
+gcp-key*.json
+application_default_credentials.json
+
+# Spring profile overrides. `application.yml` is committed and holds only
+# non-secret defaults; anything ending in -local or -secret is for a developer's
+# own machine.
+**/application-local.yml
+**/application-local.yaml
+**/application-secret*.yml
+**/application-secret*.yaml
+
+# Keys, certificates and keystores in any form.
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+
+# ---------------------------------------------------------------------------
+# Local data
+# ---------------------------------------------------------------------------
+
+# The local filesystem storage adapter writes uploaded documents here. In a
+# seeded environment that means W-9s and banking forms sitting in the working
+# tree — never commit it.
+.local-storage/
+
+# Docker volume data, if a bind mount is ever used instead of a named volume.
+.postgres-data/
+
+# ---------------------------------------------------------------------------
+# Operating system
+# ---------------------------------------------------------------------------
+
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# Editors and tooling
+# ---------------------------------------------------------------------------
+
+.idea/
+*.iml
+*.iws
+*.ipr
+
+.vscode/*
+# Shared editor recommendations are useful to commit; personal settings are not.
+!.vscode/extensions.json
+
+# Claude Code: shared project settings are committed, per-developer overrides
+# are not.
+.claude/settings.local.json
+
+*.swp
+*.swo
+*~
+
+# ---------------------------------------------------------------------------
+# Build and dependency output
+# ---------------------------------------------------------------------------
+#
+# Duplicated from the subproject ignore files on purpose: a root-level net still
+# catches these if a directory is ever moved or a new module is added.
+
+node_modules/
+dist/
+build/
+.gradle/
+.kotlin/
+out/
+
+# ---------------------------------------------------------------------------
+# Logs and transient output
+# ---------------------------------------------------------------------------
+
+*.log
+firebase-debug.log*
+firestore-debug.log*
+.firebase/
+
+# ---------------------------------------------------------------------------
+# Deliberately NOT ignored
+# ---------------------------------------------------------------------------
+#
+#   gradle/wrapper/gradle-wrapper.jar  — the wrapper only guarantees a
+#       reproducible build if it is committed.
+#   frontend/src/api/                  — the generated OpenAPI client is
+#       committed so the frontend builds without a running backend. An evaluator
+#       cloning this repo should not need Postgres up to run `npm run build`.
+#   docker-compose.yml, application.yml — non-secret defaults, and the compose
+#       credentials are local-only throwaways.
