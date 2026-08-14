@@ -155,7 +155,16 @@ database read per request, which is the right trade for an internal tool of this
    unset. The correct value is a legal answer your counsel owns, and guessing it would be worse
    than asking.
 
-5. **A mail domain and relay.** Delivery is one credential away (see below).
+5. **When two programs want different coverage, does one certificate have to clear the higher bar?**
+   Northstar asks for USD 2M and Meridian for USD 1M, and a supplier holds one certificate. Today
+   each program states its own minimum on the supplier's checklist and in its own acceptance
+   criteria, and a reviewer applies it — so a certificate that clears the stricter program clears
+   both. What v1 cannot do is accept the same certificate for Meridian while rejecting it for
+   Northstar: it is one document with one decision. If you need those to differ, say so and we will
+   make the decision per program; if "clears the strictest" is your rule, we are already there and
+   will say so on screen.
+
+6. **A mail domain and relay.** Delivery is one credential away (see below).
 
 ---
 

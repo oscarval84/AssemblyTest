@@ -222,6 +222,18 @@ deploy.
 ## Known gaps, all deliberate
 
 - **No malware scanning on upload.** Documented in `architecture.md` §7 as an accepted v1 gap, not an oversight.
+- **A program's numeric constraints are stated and reviewed against, not enforced by the engine.** Programs
+  differ in which documents they require and in the bar each one sets — Northstar wants USD 2M general
+  liability, Meridian 1M — and that difference is carried end to end: the checklist is built per enrollment and
+  states each program's own minimum, the acceptance criteria are seeded per program requirement with that
+  minimum written into the text, and extraction compares the certificate against the strictest program holding
+  it. What does *not* happen is `ComplianceEvaluator` reading `constraints`; it judges presence, review status
+  and expiry only. So the numeric bar is a human gate reached through the criteria checklist, not an automatic
+  one. This was found by re-reading the code against the brief rather than by a failure, and `architecture.md`
+  §4 previously overstated it — it claimed one certificate could be compliant for program A and non-compliant
+  for B simultaneously, which a supplier-scope document cannot express, because it is one row with one status.
+  Closing it properly means a per-enrollment decision on a shared document, which is a schema change with a
+  product question attached and is queued in §12 rather than half-built.
 - **Nothing is delivered here, but the transport exists.** `SmtpMailTransport` registers itself only when a
   mail host is configured; with none, `OutboxOnlyTransport` refuses to deliver rather than marking messages
   `SENT` it never sent, and `/ops/outbox` reports delivery as switched off. Turning it on is four environment

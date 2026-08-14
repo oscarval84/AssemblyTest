@@ -56,6 +56,12 @@ enum class Issue {
  * [constraints] is intentionally loose: the shape differs per document type — a
  * coverage minimum on a certificate has no analogue on a W-9 — and v1 should not
  * invent columns for constraints the client has not confirmed.
+ *
+ * **Nothing below reads it.** It is carried so the supplier's checklist can
+ * state the bar in each program's own terms and so review can check against it;
+ * the evaluator judges presence, status and expiry only. See
+ * architecture.md § Requirement resolution for why enforcing it here would need
+ * a per-enrollment decision on a shared document first.
  */
 data class RequiredDocument(
     val documentTypeCode: String,

@@ -50,11 +50,17 @@ data class ChecklistItem(
  *  - **Program-scope requirements are satisfied per enrollment.**
  *
  *  - **When two programs demand the same supplier-scope document under different
- *    constraints, the document is shared and each enrollment evaluates its own
- *    constraint against it.** A supplier holding a single USD 1M certificate can
- *    therefore be compliant for one program and non-compliant for another,
- *    simultaneously. That is the correct answer, and it is only expressible
- *    because compliance lives on the enrollment rather than on the supplier.
+ *    constraints, the document is shared and each enrollment carries its own
+ *    constraint.** The checklist is built per enrollment, so the same
+ *    certificate is presented under program A's minimum and under program B's.
+ *
+ * What this deliberately does *not* do is enforce those constraints. The
+ * numeric bar — a coverage minimum — is checked at review, by a person reading
+ * that program's acceptance criteria, not by `ComplianceEvaluator`, which reads
+ * presence, status and expiry only. A supplier-scope document is one row with
+ * one status, so it cannot be approved for one program and rejected for another
+ * until there is a per-enrollment decision to hold that. See architecture.md
+ * § Requirement resolution.
  */
 class RequirementResolver {
 
@@ -62,7 +68,7 @@ class RequirementResolver {
      * What one enrollment demands, carrying that program's constraints.
      *
      * Includes supplier-scope requirements: they are shared documents, but each
-     * enrollment still evaluates them under its own program's terms.
+     * enrollment states them in its own program's terms.
      */
     fun forEnrollment(
         programId: UUID,
