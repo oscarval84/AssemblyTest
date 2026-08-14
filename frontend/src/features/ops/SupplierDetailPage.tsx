@@ -1,20 +1,31 @@
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
+import Button from '@mui/material/Button'
 import Card from '@mui/material/Card'
 import CardContent from '@mui/material/CardContent'
 import CircularProgress from '@mui/material/CircularProgress'
+import Dialog from '@mui/material/Dialog'
+import DialogActions from '@mui/material/DialogActions'
+import DialogContent from '@mui/material/DialogContent'
+import DialogTitle from '@mui/material/DialogTitle'
 import Divider from '@mui/material/Divider'
+import TextField from '@mui/material/TextField'
 import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import { useState } from 'react'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import {
   documentDownloadUrl,
   useActivity,
   useChecklist,
+  useSession,
   useSupplier,
+  useSupplierUserAdministration,
   useSupplierUsers,
 } from '../../api/queries'
+import { RequestFailed } from '../../api/client'
+import ReviewDialog, { type ReviewTarget } from './ReviewDialog'
 import { EmptyState, Field, PageHeader, StatusChip } from '../../components/common'
 import { formatDate, formatDateTime, formatExpiry } from '../../lib/format'
 import {
@@ -35,10 +46,15 @@ import {
  */
 export default function SupplierDetailPage() {
   const { id } = useParams()
+  const session = useSession()
   const supplier = useSupplier(id)
+  const [reviewing, setReviewing] = useState<ReviewTarget | null>(null)
+  const canReview = session.data?.role === 'OPS' || session.data?.role === 'ADMIN'
   const checklist = useChecklist(id)
   const activity = useActivity(id)
   const users = useSupplierUsers(id)
+  const supplierUsers = useSupplierUserAdministration(id ?? '')
+  const [invitingUser, setInvitingUser] = useState(false)
 
   if (supplier.isPending) {
     return (
@@ -202,7 +218,35 @@ export default function SupplierDetailPage() {
                               </Typography>
                             )}
                           </Box>
-                          <StatusChip label={entryLook.label} color={entryLook.color} />
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                            <StatusChip label={entryLook.label} color={entryLook.color} />
+                            {canReview && entry.state === 'IN_REVIEW' && entry.submission ? (
+                              <Button
+                                size="small"
+                                variant="contained"
+                                onClick={() =>
+                                  setReviewing({
+                                    submissionId: entry.submission!.id,
+                                    supplierId: profile.id,
+                                    supplierLegalName: profile.legalName,
+                                    documentTypeName: entry.documentTypeName,
+                                    originalFilename: entry.submission!.originalFilename,
+                                    sizeBytes: entry.submission!.sizeBytes,
+                                    version: entry.submission!.version,
+                                    uploadedAt: entry.submission!.uploadedAt,
+                                    uploadedByName: entry.submission!.uploadedByName,
+                                    issuedOn: entry.submission!.issuedOn,
+                                    expiresOn: entry.submission!.expiresOn,
+                                    // The server refuses if this reviewer uploaded
+                                    // it, with a message worth reading.
+                                    reviewableByCaller: true,
+                                  })
+                                }
+                              >
+                                Review
+                              </Button>
+                            ) : null}
+                          </Stack>
                         </Stack>
                       )
                     })}
@@ -220,18 +264,44 @@ export default function SupplierDetailPage() {
               <Typography variant="overline" component="div" sx={{ mb: 2 }}>
                 People at this supplier
               </Typography>
+
+              {/* Supplier user management, deliberately not the same screen as
+                  Acme staff administration: different population, different
+                  role, different audit trail. */}
               {users.data && users.data.length > 0 ? (
-                <Stack spacing={1.5}>
+                <Stack spacing={1.75}>
                   {users.data.map((user) => (
-                    <Box key={user.id}>
-                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {user.fullName}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" component="div">
-                        {user.email} · {user.status.toLowerCase()} · last signed in{' '}
-                        {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'never'}
-                      </Typography>
-                    </Box>
+                    <Stack
+                      key={user.id}
+                      direction="row"
+                      spacing={1}
+                      sx={{ justifyContent: 'space-between', alignItems: 'flex-start' }}
+                    >
+                      <Box sx={{ minWidth: 0 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                          {user.fullName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary" component="div">
+                          {user.email} · {user.status.toLowerCase()} · last signed in{' '}
+                          {user.lastLoginAt ? formatDateTime(user.lastLoginAt) : 'never'}
+                        </Typography>
+                      </Box>
+                      {canReview ? (
+                        <Button
+                          size="small"
+                          color={user.status === 'DEACTIVATED' ? 'primary' : 'error'}
+                          disabled={supplierUsers.setStatus.isPending}
+                          onClick={() =>
+                            supplierUsers.setStatus.mutate({
+                              userId: user.id,
+                              active: user.status === 'DEACTIVATED',
+                            })
+                          }
+                        >
+                          {user.status === 'DEACTIVATED' ? 'Restore' : 'Remove'}
+                        </Button>
+                      ) : null}
+                    </Stack>
                   ))}
                 </Stack>
               ) : (
@@ -239,6 +309,18 @@ export default function SupplierDetailPage() {
                   Nobody has been invited yet.
                 </Typography>
               )}
+
+              {supplierUsers.setStatus.error instanceof RequestFailed ? (
+                <Alert severity="error" sx={{ mt: 2 }}>
+                  {supplierUsers.setStatus.error.message}
+                </Alert>
+              ) : null}
+
+              {canReview ? (
+                <Button size="small" sx={{ mt: 2 }} onClick={() => setInvitingUser(true)}>
+                  Invite someone here
+                </Button>
+              ) : null}
             </CardContent>
           </Card>
 
@@ -275,6 +357,75 @@ export default function SupplierDetailPage() {
           </Typography>
         </Stack>
       </Stack>
+
+      {reviewing ? <ReviewDialog target={reviewing} open onClose={() => setReviewing(null)} /> : null}
+      {invitingUser && id ? (
+        <InviteSupplierUserDialog supplierId={id} onClose={() => setInvitingUser(false)} />
+      ) : null}
     </>
+  )
+}
+
+/**
+ * Invites another person at the supplier's own company.
+ *
+ * Ops operates this, scoped to the one supplier whose record they are looking
+ * at. It cannot create an Acme account: the role is fixed by the endpoint, not
+ * chosen here.
+ */
+function InviteSupplierUserDialog({
+  supplierId,
+  onClose,
+}: {
+  supplierId: string
+  onClose: () => void
+}) {
+  const { invite } = useSupplierUserAdministration(supplierId)
+  const [email, setEmail] = useState('')
+  const [fullName, setFullName] = useState('')
+
+  const failure = invite.error instanceof RequestFailed ? invite.error.message : null
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault()
+    await invite.mutateAsync({ email, fullName })
+    onClose()
+  }
+
+  return (
+    <Dialog open onClose={onClose}>
+      <form onSubmit={submit}>
+        <DialogTitle>Invite someone at this supplier</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2.5}>
+            {failure ? <Alert severity="error">{failure}</Alert> : null}
+            <TextField
+              label="Name"
+              required
+              fullWidth
+              value={fullName}
+              onChange={(event) => setFullName(event.target.value)}
+            />
+            <TextField
+              label="Email address"
+              type="email"
+              required
+              fullWidth
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              helperText="They get their own sign-in for this company only. The invitation expires in seven days."
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose} color="inherit">
+            Cancel
+          </Button>
+          <Button type="submit" variant="contained" disabled={invite.isPending}>
+            {invite.isPending ? 'Sending…' : 'Send the invitation'}
+          </Button>
+        </DialogActions>
+      </form>
+    </Dialog>
   )
 }

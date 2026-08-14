@@ -23,6 +23,7 @@ data class AcmeProperties(
     val agreement: Agreement,
     val demo: Demo,
     val security: Security,
+    val jobs: Jobs,
     val portalBaseUrl: String,
 ) {
     data class Compliance(val expiryWarningDays: Long)
@@ -59,6 +60,13 @@ data class AcmeProperties(
     data class Agreement(val templateVersion: String)
 
     data class Demo(val seedOnStartup: Boolean)
+
+    /**
+     * Scheduled work. In GCP, Cloud Scheduler calls these endpoints with an OIDC
+     * token and Cloud Run verifies it before the request reaches the app; the
+     * shared secret below is the local and defence-in-depth equivalent.
+     */
+    data class Jobs(val token: String)
 
     data class Security(
         val fieldEncryptionKey: String,

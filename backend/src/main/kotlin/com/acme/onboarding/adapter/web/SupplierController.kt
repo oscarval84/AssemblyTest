@@ -2,7 +2,9 @@ package com.acme.onboarding.adapter.web
 
 import com.acme.onboarding.adapter.persistence.ActivityRow
 import com.acme.onboarding.adapter.persistence.CatalogRepository
+import com.acme.onboarding.adapter.persistence.ExpiringDocument
 import com.acme.onboarding.adapter.persistence.ProgramRecord
+import com.acme.onboarding.application.compliance.ComplianceSweepService
 import com.acme.onboarding.application.document.DocumentService
 import com.acme.onboarding.application.document.UploadRequest
 import com.acme.onboarding.application.supplier.ChecklistView
@@ -147,6 +149,18 @@ class SupplierController(
     fun inviteUser(@PathVariable id: UUID, @Valid @RequestBody body: InviteUserBody): Map<String, UUID> =
         mapOf("userId" to suppliers.inviteUser(CurrentActor.require(), id, body.email, body.fullName))
 
+    @PostMapping("/{id}/users/{userId}/deactivate")
+    @Operation(summary = "End one supplier user's access, immediately")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deactivateUser(@PathVariable id: UUID, @PathVariable userId: UUID) =
+        suppliers.deactivateUser(CurrentActor.require(), id, userId)
+
+    @PostMapping("/{id}/users/{userId}/reactivate")
+    @Operation(summary = "Restore a deactivated supplier user")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun reactivateUser(@PathVariable id: UUID, @PathVariable userId: UUID) =
+        suppliers.reactivateUser(CurrentActor.require(), id, userId)
+
     /**
      * Multipart rather than JSON with a base64 field: a 10 MB certificate would
      * be a 13 MB string, and the request would be held in memory twice.
@@ -177,6 +191,18 @@ class SupplierController(
         )
         return mapOf("submissionId" to submissionId)
     }
+}
+
+@RestController
+@RequestMapping("/api/compliance")
+@Tag(name = "Compliance")
+class ComplianceController(private val sweep: ComplianceSweepService) {
+
+    @GetMapping("/expirations")
+    @Operation(summary = "Documents that expire soon or already have, soonest first")
+    fun expirations(
+        @RequestParam(required = false, defaultValue = "60") withinDays: Long,
+    ): List<ExpiringDocument> = sweep.upcomingExpirations(CurrentActor.require(), withinDays)
 }
 
 @RestController

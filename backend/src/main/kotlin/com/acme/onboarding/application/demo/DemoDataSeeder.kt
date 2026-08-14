@@ -8,6 +8,7 @@ import com.acme.onboarding.adapter.persistence.SubmissionRepository
 import com.acme.onboarding.adapter.persistence.SupplierRecord
 import com.acme.onboarding.adapter.persistence.SupplierRepository
 import com.acme.onboarding.adapter.persistence.UserRepository
+import com.acme.onboarding.adapter.persistence.VmsLinkRepository
 import com.acme.onboarding.application.audit.ActivityRecorder
 import com.acme.onboarding.application.audit.AuditAction
 import com.acme.onboarding.application.auth.InvitationService
@@ -49,6 +50,7 @@ import java.util.UUID
 @Component
 class DemoDataSeeder(
     private val demo: DemoRepository,
+    private val vmsLinks: VmsLinkRepository,
     private val users: UserRepository,
     private val suppliers: SupplierRepository,
     private val enrollments: EnrollmentRepository,
@@ -208,6 +210,12 @@ class DemoDataSeeder(
         approvedDocument(supplier, user, staff.reviewer, "BACKGROUND_CHECK_ATTESTATION", enrollmentFor(supplier, NORTHSTAR), today().plusMonths(9))
         sign(user, supplier, "SUPPLIER_AGREEMENT", null)
         sign(user, supplier, "PROGRAM_ADDENDUM", enrollmentFor(supplier, MERIDIAN))
+
+        // Northwind arrived through the VMS, so it carries a link. The next sync
+        // finds it already known and creates only the new enrollment — the path
+        // the integration spends most of its life on, and the one where a naive
+        // implementation quietly creates a duplicate supplier.
+        vmsLinks.link("SIMULATED_VMS", "SUPPLIER", supplier.id, "VMS-SUP-4471")
 
         moveTo(supplier, OnboardingStage.APPROVED, staff.ops)
         enrollments.listForSupplier(supplier.id).forEach { enrollments.activate(it.id) }

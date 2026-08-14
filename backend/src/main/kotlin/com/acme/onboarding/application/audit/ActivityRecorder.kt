@@ -125,5 +125,27 @@ object AuditAction {
     /** Access is audited, not only change: "who read this W-9, and when". */
     const val DOCUMENT_ACCESSED = "DOCUMENT_ACCESSED"
 
+    /**
+     * Compliance status is computed, so these record the *transition* rather
+     * than the state — the moment a certificate crossed a line, and the fact
+     * that the supplier was told about it.
+     */
+    const val DOCUMENT_EXPIRING_SOON = "DOCUMENT_EXPIRING_SOON"
+    const val DOCUMENT_EXPIRED = "DOCUMENT_EXPIRED"
+
+    /**
+     * Data leaving the system is an audit event regardless of where it goes —
+     * the same treatment an external AI processor gets.
+     */
+    const val VMS_UPDATE_SENT = "VMS_UPDATE_SENT"
+    const val VMS_CONFLICT_RAISED = "VMS_CONFLICT_RAISED"
+
+    /**
+     * Criteria are versioned and every evaluation records the version it judged
+     * against, so both the authoring and the judgement are events.
+     */
+    const val CRITERIA_UPDATED = "CRITERIA_UPDATED"
+    const val CRITERION_JUDGED = "CRITERION_JUDGED"
+
     const val DEMO_DATA_RESET = "DEMO_DATA_RESET"
 }

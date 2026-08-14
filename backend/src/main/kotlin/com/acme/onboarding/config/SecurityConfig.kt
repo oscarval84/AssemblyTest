@@ -11,7 +11,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.csrf.CookieCsrfTokenRepository
+
 import org.springframework.security.web.csrf.CsrfFilter
 import org.springframework.security.web.csrf.CsrfToken
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler
@@ -46,12 +46,15 @@ class SecurityConfig {
                 csrf
                     // Readable by the SPA, which echoes it in a header. The
                     // session cookie stays HttpOnly; this one is not a credential.
-                    .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                    .csrfTokenRepository(StableCookieCsrfTokenRepository())
                     // The plain handler keeps the cookie value and the expected
                     // header value identical. The XOR-masking default protects
                     // against BREACH but requires the client to unmask, which is
                     // a subtlety worth avoiding for the protection it buys here.
                     .csrfTokenRequestHandler(CsrfTokenRequestAttributeHandler())
+                    // A scheduler has no cookie jar, so there is no cross-site
+                    // request to forge; the shared secret is the control there.
+                    .ignoringRequestMatchers("/internal/jobs/**")
             }
             .addFilterAfter(CsrfCookieFilter(), CsrfFilter::class.java)
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
@@ -69,6 +72,9 @@ class SecurityConfig {
                         "/api/demo/accounts",
                     ).permitAll()
                     .requestMatchers("/api/openapi.json", "/api/docs/**", "/swagger-ui/**").permitAll()
+                    // Scheduled jobs carry a shared secret the controller checks
+                    // rather than a session; see InternalJobsController.
+                    .requestMatchers("/internal/jobs/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                     .anyRequest().authenticated()
             }

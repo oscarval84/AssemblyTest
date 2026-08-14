@@ -93,6 +93,11 @@ acme:
     # "which text did they actually agree to" survives the next revision.
     template-version: ${AGREEMENT_TEMPLATE_VERSION:2026.1}
 
+  jobs:
+    # Shared secret for /internal/jobs/*. Deployed environments read it from
+    # Secret Manager and additionally sit behind Cloud Run's OIDC check.
+    token: ${JOBS_TOKEN:local-development-job-token}
+
   security:
     # Field-level encryption for Restricted values — today the tax ID. Deployed
     # environments read both from Secret Manager; the local defaults exist so

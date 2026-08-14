@@ -23,6 +23,11 @@ const PortalHome = lazy(() => import('./features/supplier/PortalHome'))
 const PortalProfile = lazy(() => import('./features/supplier/PortalProfile'))
 const OpsSuppliers = lazy(() => import('./features/ops/SuppliersPage'))
 const OpsSupplierDetail = lazy(() => import('./features/ops/SupplierDetailPage'))
+const OpsReviewQueue = lazy(() => import('./features/ops/ReviewQueuePage'))
+const OpsOutbox = lazy(() => import('./features/ops/OutboxPage'))
+const OpsStaffAdmin = lazy(() => import('./features/ops/StaffAdminPage'))
+const OpsExpirations = lazy(() => import('./features/ops/ExpirationsPage'))
+const OpsIntegrations = lazy(() => import('./features/ops/IntegrationsPage'))
 
 export default function App() {
   return (
@@ -59,11 +64,23 @@ export default function App() {
             <SurfaceLayout
               surface="ops"
               allow={['ADMIN', 'OPS', 'PROGRAM_MANAGER']}
-              nav={[{ label: 'Pipeline', to: '/ops' }]}
+              nav={[
+                { label: 'Pipeline', to: '/ops' },
+                { label: 'Review queue', to: '/ops/review', roles: ['OPS', 'ADMIN'] },
+                { label: 'Expiring', to: '/ops/expirations', roles: ['OPS', 'ADMIN'] },
+                { label: 'Notifications', to: '/ops/outbox', roles: ['OPS', 'ADMIN'] },
+                { label: 'VMS', to: '/ops/integrations', roles: ['OPS', 'ADMIN'] },
+                { label: 'Staff access', to: '/ops/admin/users', roles: ['ADMIN'] },
+              ]}
             />
           }
         >
           <Route path="/ops" element={<OpsSuppliers />} />
+          <Route path="/ops/review" element={<OpsReviewQueue />} />
+          <Route path="/ops/expirations" element={<OpsExpirations />} />
+          <Route path="/ops/outbox" element={<OpsOutbox />} />
+          <Route path="/ops/integrations" element={<OpsIntegrations />} />
+          <Route path="/ops/admin/users" element={<OpsStaffAdmin />} />
           <Route path="/ops/suppliers/:id" element={<OpsSupplierDetail />} />
         </Route>
 

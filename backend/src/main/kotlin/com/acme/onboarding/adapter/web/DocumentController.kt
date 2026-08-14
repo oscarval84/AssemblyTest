@@ -1,7 +1,10 @@
 package com.acme.onboarding.adapter.web
 
+import com.acme.onboarding.adapter.persistence.RejectionReasonRecord
+import com.acme.onboarding.application.document.DocumentReviewService
 import com.acme.onboarding.application.document.DocumentService
 import com.acme.onboarding.application.document.DownloadResult
+import com.acme.onboarding.application.document.ReviewQueueItem
 import com.acme.onboarding.application.document.SignatureService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -30,7 +33,15 @@ import java.util.UUID
 class DocumentController(
     private val documents: DocumentService,
     private val signatures: SignatureService,
+    private val review: DocumentReviewService,
 ) {
+
+    data class RejectBody(
+        @field:NotBlank(message = "Choose a reason.")
+        val reasonCode: String,
+        /** Optional, and the difference between a reason and an explanation. */
+        val note: String? = null,
+    )
 
     data class SignBody(
         val supplierId: UUID,
@@ -65,6 +76,25 @@ class DocumentController(
                     .header(HttpHeaders.CACHE_CONTROL, "no-store")
                     .body(ByteArrayResource(result.bytes))
         }
+
+    @GetMapping("/review-queue")
+    @Operation(summary = "Documents waiting on Acme, oldest first")
+    fun reviewQueue(): List<ReviewQueueItem> = review.queue(CurrentActor.require())
+
+    @GetMapping("/rejection-reasons")
+    @Operation(summary = "The reason catalog, so rejecting is one click rather than a blank box")
+    fun rejectionReasons(): List<RejectionReasonRecord> = review.rejectionReasons(CurrentActor.require())
+
+    @PostMapping("/{id}/approve")
+    @Operation(summary = "Accept a document; approving the last one completes onboarding")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun approve(@PathVariable id: UUID) = review.approve(CurrentActor.require(), id)
+
+    @PostMapping("/{id}/reject")
+    @Operation(summary = "Hand a document back with a reason the supplier can act on")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun reject(@PathVariable id: UUID, @Valid @RequestBody body: RejectBody) =
+        review.reject(CurrentActor.require(), id, body.reasonCode, body.note)
 
     @GetMapping("/agreement")
     @Operation(summary = "The agreement text and its hash, as shown before signing")

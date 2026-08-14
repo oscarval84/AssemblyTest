@@ -47,7 +47,7 @@ class SchemaMigrationTest {
             "SELECT version, success FROM flyway_schema_history WHERE version IS NOT NULL ORDER BY installed_rank",
         )
 
-        assertEquals(listOf("1", "2", "3", "4"), applied.map { it["version"] })
+        assertEquals(listOf("1", "2", "3", "4", "5", "6", "7"), applied.map { it["version"] })
         assertTrue(applied.all { it["success"] == true })
     }
 

@@ -4,6 +4,75 @@
  */
 
 export interface paths {
+    "/api/requirements/{requirementId}/criteria": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The criteria currently in force for a requirement */
+        get: operations["current"];
+        /** Replace a requirement's criteria, producing a new version */
+        put: operations["author"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/jobs/vms-sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pull assignments from the VMS and push queued outcomes back */
+        post: operations["vmsSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/jobs/outbox-drain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deliver queued notifications through the configured transport */
+        post: operations["outboxDrain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/internal/jobs/compliance-sweep": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Notify about expiring and expired documents, and record the transitions */
+        post: operations["complianceSweep"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/suppliers": {
         parameters: {
             query?: never;
@@ -16,6 +85,40 @@ export interface paths {
         put?: never;
         /** Start onboarding: create the company, enrol it and invite its first user */
         post: operations["create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suppliers/{id}/users/{userId}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a deactivated supplier user */
+        post: operations["reactivateUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suppliers/{id}/users/{userId}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End one supplier user's access, immediately */
+        post: operations["deactivateUser"];
         delete?: never;
         options?: never;
         head?: never;
@@ -67,6 +170,74 @@ export interface paths {
         put?: never;
         /** Set a password, consume the invitation and sign in */
         post: operations["accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integrations/messages/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put a failed or dead-lettered push back in the queue */
+        post: operations["retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{submissionId}/criteria/{criterionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a reviewer's verdict on one criterion */
+        post: operations["judge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Hand a document back with a reason the supplier can act on */
+        post: operations["reject"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Accept a document; approving the last one completes onboarding */
+        post: operations["approve"];
         delete?: never;
         options?: never;
         head?: never;
@@ -380,6 +551,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/outbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every notification the system has queued, newest first */
+        get: operations["list_2"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/invitations/{token}": {
         parameters: {
             query?: never;
@@ -397,6 +585,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/integrations/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every message exchanged with the VMS, newest first */
+        get: operations["messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{submissionId}/criteria": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The criteria checklist for one submission, with any verdicts so far */
+        get: operations["checklist_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{submissionId}/criteria/{criterionId}/rejection-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The rejection wording a failed criterion produces */
+        get: operations["rejectionNote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{id}/download": {
         parameters: {
             query?: never;
@@ -406,6 +645,40 @@ export interface paths {
         };
         /** Fetch a document, recording who read it */
         get: operations["download"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Documents waiting on Acme, oldest first */
+        get: operations["reviewQueue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/rejection-reasons": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The reason catalog, so rejecting is one click rather than a blank box */
+        get: operations["rejectionReasons"];
         put?: never;
         post?: never;
         delete?: never;
@@ -448,6 +721,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/compliance/expirations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Documents that expire soon or already have, soonest first */
+        get: operations["expirations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/session": {
         parameters: {
             query?: never;
@@ -473,7 +763,7 @@ export interface paths {
             cookie?: never;
         };
         /** The access report: every internal user, role, scope and last sign-in */
-        get: operations["list_2"];
+        get: operations["list_3"];
         put?: never;
         post?: never;
         delete?: never;
@@ -503,6 +793,29 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CriteriaBody: {
+            criteria: string[];
+        };
+        DrainResult: {
+            transport: string;
+            /** Format: int32 */
+            attempted: number;
+            /** Format: int32 */
+            sent: number;
+            /** Format: int32 */
+            failed: number;
+            deliveryDisabled: boolean;
+        };
+        SweepResult: {
+            /** Format: date */
+            today: string;
+            /** Format: int32 */
+            documentsExamined: number;
+            /** Format: int32 */
+            remindersSent: number;
+            /** Format: int32 */
+            suppliersReopened: number;
+        };
         NewSupplierBody: {
             legalName: string;
             contactName: string;
@@ -586,6 +899,14 @@ export interface components {
             supplierId?: string | null;
             supplierName?: string | null;
             programIds: string[];
+        };
+        JudgementBody: {
+            verdict: string;
+            evidence?: string | null;
+        };
+        RejectBody: {
+            reasonCode: string;
+            note?: string | null;
         };
         SignBody: {
             /** Format: uuid */
@@ -748,6 +1069,17 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
         };
+        AcceptanceCriterionRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            programRequirementId: string;
+            /** Format: int32 */
+            version: number;
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+        };
         ProgramRecord: {
             /** Format: uuid */
             id: string;
@@ -755,6 +1087,30 @@ export interface components {
             name: string;
             description?: string | null;
             active: boolean;
+        };
+        OutboxEntry: {
+            /** Format: uuid */
+            id: string;
+            template: string;
+            recipientEmail: string;
+            recipientName?: string | null;
+            subject: string;
+            bodyText: string;
+            status: string;
+            /** Format: int32 */
+            attempts: number;
+            lastError?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            sentAt?: string | null;
+            /** Format: uuid */
+            supplierId?: string | null;
+            supplierLegalName?: string | null;
+        };
+        OutboxView: {
+            transport: string;
+            entries: components["schemas"]["OutboxEntry"][];
         };
         InvitationPreview: {
             email: string;
@@ -764,6 +1120,82 @@ export interface components {
             organizationName: string;
             usable: boolean;
             unusableReason?: string | null;
+        };
+        IntegrationMessageRecord: {
+            /** Format: uuid */
+            id: string;
+            direction: string;
+            targetSystem: string;
+            messageType: string;
+            externalRef?: string | null;
+            /** Format: uuid */
+            supplierId?: string | null;
+            supplierLegalName?: string | null;
+            payload: string;
+            status: string;
+            /** Format: int32 */
+            attempts: number;
+            lastError?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            processedAt?: string | null;
+        };
+        CriteriaChecklist: {
+            /** Format: uuid */
+            submissionId: string;
+            documentTypeName: string;
+            programName?: string | null;
+            /** Format: int32 */
+            criteriaVersion: number;
+            criteria: components["schemas"]["CriterionVerdict"][];
+            empty: boolean;
+            failed: components["schemas"]["CriterionVerdict"][];
+        };
+        CriterionVerdict: {
+            /** Format: uuid */
+            criterionId: string;
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+            /** Format: int32 */
+            criteriaVersion: number;
+            verdict?: string | null;
+            evidence?: string | null;
+            /** Format: double */
+            confidence?: number | null;
+            source?: string | null;
+            decidedByName?: string | null;
+        };
+        ReviewQueueItem: {
+            /** Format: uuid */
+            submissionId: string;
+            /** Format: uuid */
+            supplierId: string;
+            supplierLegalName: string;
+            documentTypeCode: string;
+            documentTypeName: string;
+            classification: string;
+            programNames: string[];
+            /** Format: int32 */
+            version: number;
+            originalFilename: string;
+            /** Format: int64 */
+            sizeBytes: number;
+            /** Format: date */
+            issuedOn?: string | null;
+            /** Format: date */
+            expiresOn?: string | null;
+            /** Format: date-time */
+            uploadedAt: string;
+            uploadedByName?: string | null;
+            /** Format: int64 */
+            waitingDays: number;
+            reviewableByCaller: boolean;
+        };
+        RejectionReasonRecord: {
+            code: string;
+            label: string;
         };
         AgreementPreview: {
             templateVersion: string;
@@ -779,6 +1211,20 @@ export interface components {
         DemoInfo: {
             password: string;
             accounts: components["schemas"]["DemoAccount"][];
+        };
+        ExpiringDocument: {
+            /** Format: uuid */
+            submissionId: string;
+            /** Format: uuid */
+            supplierId: string;
+            supplierLegalName: string;
+            contactEmail?: string | null;
+            contactName?: string | null;
+            documentTypeCode: string;
+            documentTypeName: string;
+            /** Format: date */
+            expiresOn: string;
+            programNames: string[];
         };
         StaffUserView: {
             /** Format: uuid */
@@ -804,6 +1250,118 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requirementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AcceptanceCriterionRecord"][];
+                };
+            };
+        };
+    };
+    author: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requirementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CriteriaBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: number;
+                    };
+                };
+            };
+        };
+    };
+    vmsSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    outboxDrain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["DrainResult"];
+                };
+            };
+        };
+    };
+    complianceSweep: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["SweepResult"];
+                };
+            };
+        };
+    };
     list: {
         parameters: {
             query?: never;
@@ -845,6 +1403,48 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["SupplierDetail"];
                 };
+            };
+        };
+    };
+    reactivateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    deactivateUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -935,6 +1535,95 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["SessionDescription"];
                 };
+            };
+        };
+    };
+    retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    judge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+                criterionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JudgementBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    reject: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RejectBody"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    approve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1360,6 +2049,28 @@ export interface operations {
             };
         };
     };
+    list_2: {
+        parameters: {
+            query?: {
+                supplierId?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["OutboxView"];
+                };
+            };
+        };
+    };
     preview: {
         parameters: {
             query?: never;
@@ -1382,6 +2093,73 @@ export interface operations {
             };
         };
     };
+    messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["IntegrationMessageRecord"][];
+                };
+            };
+        };
+    };
+    checklist_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CriteriaChecklist"];
+                };
+            };
+        };
+    };
+    rejectionNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+                criterionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
+                };
+            };
+        };
+    };
     download: {
         parameters: {
             query?: never;
@@ -1400,6 +2178,46 @@ export interface operations {
                 };
                 content: {
                     "*/*": string;
+                };
+            };
+        };
+    };
+    reviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ReviewQueueItem"][];
+                };
+            };
+        };
+    };
+    rejectionReasons: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["RejectionReasonRecord"][];
                 };
             };
         };
@@ -1447,6 +2265,28 @@ export interface operations {
             };
         };
     };
+    expirations: {
+        parameters: {
+            query?: {
+                withinDays?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ExpiringDocument"][];
+                };
+            };
+        };
+    };
     session: {
         parameters: {
             query?: never;
@@ -1467,7 +2307,7 @@ export interface operations {
             };
         };
     };
-    list_2: {
+    list_3: {
         parameters: {
             query?: never;
             header?: never;
