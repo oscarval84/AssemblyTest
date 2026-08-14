@@ -17,7 +17,7 @@ the table in `architecture.md` §10.
 | 4 | Notifications | **Done** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. `SmtpMailTransport` delivers wherever a mail host is configured; with none, delivery is off and the screen says so |
 | 5 | VMS integration | **Done** | `VmsConnector` port with a simulated adapter, idempotent pull that starts onboarding with no ops action, transactional integration outbox with backoff and dead-lettering, conflict flagging, and `/ops/integrations` |
 | 6 | Compliance engine | **Done** | Nightly sweep reminds at 30 days, 7 days and the morning after; reopens onboarding on expiry; records every transition. Ops sees the same list at `/ops/expirations` |
-| 7 | AI review | **Done** | Criteria authored, versioned and checked at review time with one-click rejection in Acme's own words; model prefill and COI field extraction both behind an API key, with the classification gate in code |
+| 7 | AI review | **Done** | Criteria authored, versioned and checked at review time with one-click rejection in Acme's own words; model prefill and field extraction behind an API key, the W-9 additionally behind a switch Acme owns |
 | 8 | Deliverables | **Done** | [decision-memo.md](decision-memo.md), [demo-script.md](demo-script.md), root README, seeded demo world with an admin-only reset |
 
 ## Workstream 2b — administration
