@@ -223,12 +223,21 @@ gcloud run deploy $SERVICE \
   --set-env-vars="DATABASE_USER=acme,APP_DB_ROLE=acme" \
   --set-env-vars="STORAGE_LOCAL_PATH=/mnt/documents" \
   --set-env-vars="SESSION_COOKIE_SECURE=true,BUSINESS_TIME_ZONE=America/New_York" \
+  --set-env-vars="SESSION_COOKIE_NAME=__session" \
   --set-env-vars="PORTAL_BASE_URL=https://${PROJECT_ID}.web.app" \
   --set-secrets="DATABASE_PASSWORD=database-password:latest" \
   --set-secrets="FIELD_ENCRYPTION_KEY=field-encryption-key:latest" \
   --set-secrets="FIELD_ENCRYPTION_SALT=field-encryption-salt:latest" \
   --set-secrets="JOBS_TOKEN=jobs-token:latest"
 ```
+
+**`SESSION_COOKIE_NAME=__session` is not cosmetic, and omitting it produces a bug that looks like
+anything but a cookie name.** Firebase Hosting strips every incoming cookie except `__session` before
+proxying to Cloud Run, so that it can cache. Under any other name the browser stores the session
+cookie and sends it, Hosting drops it, and the backend sees an anonymous request: sign-in returns
+200, the very next call returns 401, and the app sits on a spinner. Hitting the Cloud Run URL
+directly works perfectly, which is what makes it confusing — and is also the fastest way to confirm
+it, since the difference between the two paths is exactly Hosting.
 
 `--allow-unauthenticated` is required, not lax: Firebase Hosting invokes the Cloud Run service as an
 anonymous caller, so a private service cannot be rewritten to. The application's own session auth is

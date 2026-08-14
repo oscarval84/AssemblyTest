@@ -73,7 +73,13 @@ acme:
     # Sliding expiry; revocation is a DELETE, so this is a ceiling rather than
     # the primary access-control lever.
     ttl: 12h
-    cookie-name: ACME_SESSION
+    # Behind Firebase Hosting this MUST be `__session`, and the reason costs an
+    # afternoon to rediscover: Hosting strips every incoming cookie except one
+    # named `__session` before proxying to Cloud Run, so it can cache. Any other
+    # name means the browser holds a perfectly good session cookie, sends it, and
+    # the backend never sees it — sign-in succeeds and the next request is a 401.
+    # Local development has no proxy in front, so the default is the readable name.
+    cookie-name: ${SESSION_COOKIE_NAME:ACME_SESSION}
     # False only for local HTTP development. Deployed environments are HTTPS
     # behind Firebase Hosting and set this true.
     cookie-secure: ${SESSION_COOKIE_SECURE:false}

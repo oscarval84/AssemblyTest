@@ -27,6 +27,8 @@ Two independently deployable services in one repository, plus a managed database
 
 **Why Firebase Hosting in front of Cloud Run.** Hosting rewrites `/api/**` to the backend service, so the browser only ever talks to one origin. That removes CORS entirely and lets the session cookie stay `HttpOnly; Secure; SameSite=Lax` — the simplest secure configuration, and the right one for a system holding tax and banking documents.
 
+**It costs one constraint, and it is not obvious.** Hosting strips every incoming cookie except one named `__session` before proxying, so that it can cache responses. A session cookie under any other name is held by the browser, sent by the browser, and never seen by the backend: sign-in returns 200 and the next request returns 401. The cookie name is therefore configuration rather than a constant — `SESSION_COOKIE_NAME`, set to `__session` in every environment behind Hosting. See [deployment.md](deployment.md).
+
 ## 2. Repository layout
 
 ```

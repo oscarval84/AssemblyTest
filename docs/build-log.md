@@ -221,6 +221,16 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **The session cookie has to be called `__session` behind Firebase Hosting**, which is now
+  configuration (`SESSION_COOKIE_NAME`) rather than a constant. Hosting strips every other incoming
+  cookie before proxying to Cloud Run, so the first deploy signed in successfully and then 401'd on
+  every subsequent request. Named here because the symptom points nowhere near the cause, and because
+  the diagnostic is worth reusing: the same request against the Cloud Run URL directly worked, which
+  isolates it to the proxy in one step.
+- **`V2`'s comment block still describes the grants more strongly than they hold.** The accurate version is
+  in `architecture.md` §7 and `deployment.md`, and not in the migration, because the file has been applied
+  and Flyway checksums it — editing it stops every existing database from starting. That is a rule rather
+  than an inconvenience, and it is written down in [local-development.md](local-development.md).
 - **One database role migrates and serves.** `activity_event`'s grants are real — verified against a
   non-superuser owner, which is refused `UPDATE` after `V2`'s revoke — but the deployed role owns the table,
   and an owner can re-grant to itself and disable its own triggers. So the grant layer stops a bug and stops

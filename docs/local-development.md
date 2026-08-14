@@ -155,6 +155,17 @@ stored — nothing in the extraction path has a field for one, whatever the flag
 Every call writes a `DOCUMENT_DISCLOSED` audit event naming the processor, the model and the purpose, and a
 Restricted document additionally records the setting that allowed it.
 
+## Applied migrations are immutable, comments included
+
+Flyway checksums the whole file. Editing a migration that has already run — even to reword a comment —
+makes every database that applied it refuse to start with `Migration checksum mismatch`. That includes
+your local one and every deployed one, and it does not fail at review, it fails at boot.
+
+This was learned the hard way: a comment block in `V2__audit_append_only.sql` was corrected for accuracy,
+and the next deploy would not start. The correction belonged in [architecture.md](architecture.md) §7 and
+[deployment.md](deployment.md) anyway, which is where it now lives. If a migration's *behaviour* needs to
+change, the answer is always a new migration.
+
 ## Inspect the database
 
 An Adminer instance is available behind an opt-in profile, so it never starts as part of the normal `up`:
