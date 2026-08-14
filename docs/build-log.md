@@ -221,6 +221,12 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **An unknown API address answered 500, not 404.** Spring raises `NoResourceFoundException` for a URL no
+  controller serves, nothing handled it, and it fell through to the catch-all that apologises for a fault on
+  Acme's side. Two costs: a supplier following a stale link was told Acme was broken, and real 500s sat in the
+  logs among typos. Found by sweeping the deployed app rather than by a test — the suite calls services
+  directly and has no HTTP layer, so no test could have caught it. Fixed in `ApiExceptionHandler` and verified
+  against the deployed URL.
 - **The session cookie has to be called `__session` behind Firebase Hosting**, which is now
   configuration (`SESSION_COOKIE_NAME`) rather than a constant. Hosting strips every other incoming
   cookie before proxying to Cloud Run, so the first deploy signed in successfully and then 401'd on

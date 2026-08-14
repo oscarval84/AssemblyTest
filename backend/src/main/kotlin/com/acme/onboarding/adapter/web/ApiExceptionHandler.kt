@@ -9,10 +9,12 @@ import com.acme.onboarding.domain.user.AccessDeniedException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.multipart.MaxUploadSizeExceededException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 /**
  * One error shape for the whole API: `{ message, status, code? }`.
@@ -72,6 +74,29 @@ class ApiExceptionHandler {
         "That file is larger than the 10 MB limit. Most scanners can save a smaller file at " +
             "200 dpi — rescan and try again.",
         "TOO_LARGE",
+    )
+
+    /**
+     * A URL this API does not serve.
+     *
+     * Without this it reaches the catch-all below and comes back as a 500
+     * apologising for a fault on Acme's side — which is wrong twice over: it
+     * tells the caller Acme is broken when the request was, and it buries real
+     * 500s in noise from typos and stale links. Spring raises
+     * `NoResourceFoundException` here rather than anything named "404", which is
+     * why it is easy to miss.
+     */
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun noSuchRoute(e: NoResourceFoundException) = respond(
+        HttpStatus.NOT_FOUND,
+        "That address does not exist on this system. Check the link, or start again from the home page.",
+    )
+
+    /** A known URL called with the wrong verb — the same reasoning as above. */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun wrongMethod(e: HttpRequestMethodNotSupportedException) = respond(
+        HttpStatus.METHOD_NOT_ALLOWED,
+        "That address does not accept ${e.method} requests.",
     )
 
     @ExceptionHandler(Exception::class)
