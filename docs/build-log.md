@@ -248,8 +248,18 @@ deploy.
   that happens when a supplier submits. Running it automatically is a scheduler and a queue away, and it would
   transmit every certificate to a processor whether or not anyone was going to look at the result — which is a
   cost and a disclosure decision Acme should make rather than inherit.
-- **Deploy pipeline is not built.** Jib, Firebase Hosting configuration and the GitHub Actions workflow need
-  Acme's GCP project and Workload Identity Federation identifiers, which we do not have.
+- **There is no Cloud Storage adapter.** `LocalDocumentStore` is the only implementation of the port, and
+  the architecture's §7 describes a GCS adapter serving V4 signed URLs. Deployment closes the durability half
+  by mounting the bucket into Cloud Run as a volume and pointing the filesystem adapter at it — no code change,
+  durable, shared across instances. What is genuinely absent is the signed URL, and that is the better trade at
+  this scale: streaming through `/api/documents/{id}/download` means every read is authorized and audited when
+  it happens, where a signed URL is a bearer credential nobody can revoke before it expires. See
+  [deployment.md](deployment.md) § The documents bucket.
+- **No CI/CD pipeline.** Jib and the Firebase Hosting configuration are now in the repo and
+  [deployment.md](deployment.md) is a working runbook, but the deploy runs from a developer machine. The
+  GitHub Actions workflow with Workload Identity Federation that `architecture.md` §3 names is not built — and
+  it was self-imposed scope: the brief asks for a deployed URL and says free tiers are fine, and never
+  mentions CI/CD.
 
 ## Workstream 6 — the compliance engine
 

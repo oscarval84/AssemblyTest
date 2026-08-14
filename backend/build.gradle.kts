@@ -4,6 +4,9 @@ plugins {
 	id("org.springframework.boot") version "4.1.0"
 	id("io.spring.dependency-management") version "1.1.7"
 	kotlin("plugin.jpa") version "2.3.21"
+	// Builds the container image straight to Artifact Registry with no Dockerfile
+	// and no local Docker daemon. See docs/deployment.md.
+	id("com.google.cloud.tools.jib") version "3.4.5"
 }
 
 group = "com.acme"
@@ -46,6 +49,11 @@ dependencies {
 	implementation("com.anthropic:anthropic-java:2.34.0")
 
 	runtimeOnly("org.postgresql:postgresql")
+	// Cloud SQL over a Unix socket, so no database password crosses a network
+	// and Cloud Run needs no VPC connector. Inert everywhere else: the local and
+	// test JDBC URLs never name the socket factory, so this is a jar and nothing
+	// more until DATABASE_URL asks for it.
+	runtimeOnly("com.google.cloud.sql:postgres-socket-factory:1.21.0")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
@@ -77,4 +85,47 @@ allOpen {
 
 tasks.withType<Test> {
 	useJUnitPlatform()
+}
+
+// ---------------------------------------------------------------------------
+// Container image
+// ---------------------------------------------------------------------------
+//
+// Target and region come from Gradle properties so nothing about Acme's project
+// is committed here:
+//
+//   ./gradlew jib -Pgcp.project=acme-onboarding -Pgcp.region=us-central1
+//
+// See docs/deployment.md for the full runbook.
+
+val gcpProject = (findProperty("gcp.project") ?: System.getenv("GCP_PROJECT") ?: "").toString()
+val gcpRegion = (findProperty("gcp.region") ?: System.getenv("GCP_REGION") ?: "us-central1").toString()
+val gcpRepository = (findProperty("gcp.repository") ?: "acme").toString()
+
+jib {
+	from {
+		image = "eclipse-temurin:21-jre"
+		// Pinned, and load-bearing on an Apple Silicon machine: Jib would
+		// otherwise build for the host's architecture and Cloud Run would refuse
+		// the image with an error that does not mention architecture at all.
+		platforms {
+			platform {
+				architecture = "amd64"
+				os = "linux"
+			}
+		}
+	}
+	to {
+		image = "$gcpRegion-docker.pkg.dev/$gcpProject/$gcpRepository/supplier-onboarding"
+		tags = setOf("latest")
+	}
+	container {
+		// Cloud Run supplies PORT and application.yml reads it; this is only the
+		// declared default.
+		ports = listOf("8080")
+		// Cloud Run's smallest instance is 512 MiB. Without this the JVM sizes
+		// its heap against the host's memory and is killed on the first upload.
+		jvmFlags = listOf("-XX:MaxRAMPercentage=70.0", "-XX:+UseSerialGC")
+		creationTime = "USE_CURRENT_TIMESTAMP"
+	}
 }
