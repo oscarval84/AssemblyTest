@@ -221,6 +221,14 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **One database role migrates and serves.** `activity_event`'s grants are real — verified against a
+  non-superuser owner, which is refused `UPDATE` after `V2`'s revoke — but the deployed role owns the table,
+  and an owner can re-grant to itself and disable its own triggers. So the grant layer stops a bug and stops
+  a SQL injection; it does not stop someone with full control of the application's database session who
+  thinks to run `GRANT` first. The hash chain is the layer that survives that case, which is why the
+  auditor-facing claim is *detectable*, not *prevented*. Splitting into a migration owner and a runtime role
+  that owns nothing is deploy configuration — see [deployment.md](deployment.md) § Cloud SQL — and is not
+  done.
 - **No malware scanning on upload.** Documented in `architecture.md` §7 as an accepted v1 gap, not an oversight.
 - **A program's numeric constraints are stated and reviewed against, not enforced by the engine.** Programs
   differ in which documents they require and in the bar each one sets — Northstar wants USD 2M general

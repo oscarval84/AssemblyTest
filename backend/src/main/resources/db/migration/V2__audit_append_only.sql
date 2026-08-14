@@ -7,12 +7,17 @@
 --      application and the migration run as the same user.
 --
 --   2. Table grants restricting the application role to INSERT and SELECT.
---      This is production defence-in-depth: even a compromised application
---      credential cannot rewrite history, and the restriction sits outside the
---      application's own code path.
+--      Defence-in-depth that sits outside the application's own code path, so
+--      a stray UPDATE in a repository fails at the database rather than at
+--      review. Note the limit: where one role both migrates and serves — which
+--      is what the deploy does today — that role owns this table, and an owner
+--      can grant the privilege back to itself and disable its own triggers.
+--      Two roles, a migration owner and a runtime role owning nothing, is what
+--      makes this a wall rather than a guardrail.
 --
--- Neither stops a superuser, which is why events are also hash-chained — the
--- chain makes tampering detectable when prevention is bypassed.
+-- Neither stops a superuser or a determined owner, which is why events are also
+-- hash-chained — the chain makes tampering detectable when prevention is
+-- bypassed, and detection is the property that survives every case above.
 
 CREATE OR REPLACE FUNCTION activity_event_is_append_only()
     RETURNS TRIGGER

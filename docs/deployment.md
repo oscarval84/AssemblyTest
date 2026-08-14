@@ -107,7 +107,14 @@ gcloud sql instances describe $SQL_INSTANCE --format='value(connectionName)'
 **The audit log's grants.** `V2__audit_append_only.sql` revokes `UPDATE` and `DELETE` on
 `activity_event` from the application's role, but only when Flyway is told which role that is. Set
 `APP_DB_ROLE=acme` in step 7 or the migration logs a notice and skips the grant — the append-only
-trigger still holds, but the defence-in-depth layer the memo describes will not be there.
+trigger still holds, but the defence-in-depth layer is not there.
+
+One role does both jobs here, which is worth knowing rather than discovering later: `acme` applies
+the migrations *and* serves the application, so it owns `activity_event`. The revoke is real — a
+non-superuser owner is refused `UPDATE` — but an owner can grant the privilege back to itself and
+can disable its own triggers, so this is a guardrail rather than a wall. Making it a wall is two
+roles: an owner that only ever runs Flyway, and a runtime user that owns nothing. That is a change
+to this runbook, not to the application.
 
 ## 5. The documents bucket
 
