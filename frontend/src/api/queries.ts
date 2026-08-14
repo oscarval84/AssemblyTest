@@ -8,6 +8,7 @@ import {
   type ActivityRow,
   type AgreementPreview,
   type AuditExportFilter,
+  type AuditExportFormat,
   type ChainVerification,
   type ChecklistView,
   type DemoInfo,
@@ -329,11 +330,22 @@ export function useOutbox(enabled = true): UseQueryResult<OutboxView> {
 export function useReviewDecision(supplierId: string) {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: async (input: { submissionId: string; reasonCode?: string; note?: string | null }) => {
-      if (input.reasonCode) {
+    mutationFn: async (input: {
+      submissionId: string
+      criterionId?: string
+      reasonCode?: string
+      note?: string | null
+    }) => {
+      // A rejection rests on one thing: the criterion it failed, or a reason
+      // from the catalog. Sending both is a 422 by design, so the caller picks.
+      if (input.criterionId || input.reasonCode) {
         await api.POST('/api/documents/{id}/reject', {
           params: { path: { id: input.submissionId } },
-          body: { reasonCode: input.reasonCode, note: input.note ?? null },
+          body: {
+            criterionId: input.criterionId ?? null,
+            reasonCode: input.reasonCode ?? null,
+            note: input.note ?? null,
+          },
         }).then(unwrap)
       } else {
         await api.POST('/api/documents/{id}/approve', {
@@ -448,12 +460,35 @@ export function useChainVerification(chainKey: string | undefined): UseQueryResu
 export function useAuditExport() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (filter: AuditExportFilter) => downloadAuditExport(filter),
-    onSuccess: (_rowCount, filter) => {
-      if (filter.supplierId) {
-        void queryClient.invalidateQueries({ queryKey: keys.activity(filter.supplierId) })
-        void queryClient.invalidateQueries({ queryKey: keys.chainVerification(filter.supplierId) })
+    mutationFn: (input: AuditExportFilter & { format?: AuditExportFormat }) =>
+      downloadAuditExport(input, input.format ?? 'csv'),
+    onSuccess: (_rowCount, input) => {
+      if (input.supplierId) {
+        void queryClient.invalidateQueries({ queryKey: keys.activity(input.supplierId) })
+        void queryClient.invalidateQueries({ queryKey: keys.chainVerification(input.supplierId) })
       }
+    },
+  })
+}
+
+/**
+ * Asks the model to fill the checklist in.
+ *
+ * A mutation because it changes stored verdicts and writes a disclosure event —
+ * and because it is a deliberate act by a person, not something a screen does on
+ * its own behalf when it loads.
+ */
+export function usePrefillCriteria(submissionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.POST('/api/documents/{submissionId}/criteria/prefill', {
+          params: { path: { submissionId } },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.criteria(submissionId) })
     },
   })
 }

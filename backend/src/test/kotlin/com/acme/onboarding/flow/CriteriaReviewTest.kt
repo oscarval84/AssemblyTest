@@ -7,6 +7,7 @@ import com.acme.onboarding.application.auth.InvitationService
 import com.acme.onboarding.application.criteria.CriteriaReviewService
 import com.acme.onboarding.application.document.DocumentReviewService
 import com.acme.onboarding.application.document.DocumentService
+import com.acme.onboarding.application.document.RejectionGrounds
 import com.acme.onboarding.application.document.UploadRequest
 import com.acme.onboarding.application.supplier.NewSupplierRequest
 import com.acme.onboarding.application.supplier.ProfileUpdateRequest
@@ -165,11 +166,19 @@ class CriteriaReviewTest {
         assertTrue(note.contains("at least USD 2,000,000"), note)
         assertTrue(note.contains("USD 1,000,000"), note)
 
-        review.reject(reviewer, world.submissionId, "INSUFFICIENT_COVERAGE", note)
+        // Grounded in the criterion itself, not in a catalog code that happens
+        // to be nearby. Before this was modelled properly the UI sent a fixed
+        // code with every criterion-based rejection, so a supplier whose
+        // certificate was unsigned was told their coverage was too low.
+        review.reject(reviewer, world.submissionId, RejectionGrounds.Criterion(criterion.criterionId), note)
 
         val checklist = suppliers.checklist(world.supplierUser, world.supplierId)
         val entry = checklist.programs.single().neededForThisProgram
             .single { it.documentTypeCode == "CERTIFICATE_OF_INSURANCE" }
+
+        // The supplier reads Acme's own wording as the reason, with the
+        // evidence beneath it.
+        assertEquals(criterion.text, entry.submission?.rejectionReasonLabel)
         assertTrue(entry.submission!!.rejectionNote!!.contains("at least USD 2,000,000"))
     }
 

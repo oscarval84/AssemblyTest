@@ -3,6 +3,8 @@ package com.acme.onboarding.flow
 import com.acme.onboarding.adapter.persistence.CatalogRepository
 import com.acme.onboarding.adapter.persistence.UserRepository
 import com.acme.onboarding.application.audit.AuditAction
+import com.acme.onboarding.application.audit.AuditExport
+import com.acme.onboarding.application.audit.AuditExportFormat
 import com.acme.onboarding.application.audit.AuditExportRequest
 import com.acme.onboarding.application.audit.AuditExportService
 import com.acme.onboarding.application.auth.InvitationService
@@ -70,15 +72,15 @@ class AuditExportTest {
 
         val export = audit.export(ops, AuditExportRequest(supplierId = world.first.supplierId))
 
-        assertEquals(HEADER, headerOf(export.csv))
-        assertEquals(export.rowCount, dataRows(export.csv).size)
-        assertTrue(export.csv.contains(world.first.legalName), export.csv)
-        assertTrue(export.csv.contains(world.first.programCode), export.csv)
-        assertFalse(export.csv.contains(world.second.legalName), export.csv)
+        assertEquals(HEADER, headerOf(text(export)))
+        assertEquals(export.rowCount, dataRows(text(export)).size)
+        assertTrue(text(export).contains(world.first.legalName), text(export))
+        assertTrue(text(export).contains(world.first.programCode), text(export))
+        assertFalse(text(export).contains(world.second.legalName), text(export))
 
         // Oldest first: an auditor reads this as what happened, in order, and
         // the first thing that ever happens to a supplier is being invited.
-        assertTrue(dataRows(export.csv).first().contains(AuditAction.SUPPLIER_INVITED), export.csv)
+        assertTrue(dataRows(text(export)).first().contains(AuditAction.SUPPLIER_INVITED), text(export))
 
         // The file names itself after what is in it, because these arrive as
         // attachments and `export(3).csv` is how the wrong period gets sent.
@@ -93,8 +95,8 @@ class AuditExportTest {
 
         val export = audit.export(ops, AuditExportRequest(programId = world.first.programId))
 
-        assertTrue(export.csv.contains(world.first.legalName), export.csv)
-        assertFalse(export.csv.contains(world.second.legalName), export.csv)
+        assertTrue(text(export).contains(world.first.legalName), text(export))
+        assertFalse(text(export).contains(world.second.legalName), text(export))
     }
 
     @Test
@@ -108,7 +110,7 @@ class AuditExportTest {
             AuditExportRequest(supplierId = world.first.supplierId, to = today.minusDays(1)),
         )
         assertEquals(0, before.rowCount)
-        assertEquals(0, dataRows(before.csv).size)
+        assertEquals(0, dataRows(text(before)).size)
 
         // Both ends inclusive: "from today to today" has to contain today, or
         // the person filling in the form gets an empty file and concludes the
@@ -137,8 +139,8 @@ class AuditExportTest {
         val manager = programManager(world.first.programId)
 
         val export = audit.export(manager, AuditExportRequest())
-        assertTrue(export.csv.contains(world.first.legalName), export.csv)
-        assertFalse(export.csv.contains(world.second.legalName), export.csv)
+        assertTrue(text(export).contains(world.first.legalName), text(export))
+        assertFalse(text(export).contains(world.second.legalName), text(export))
 
         assertFailsWith<AccessDeniedException> {
             audit.export(manager, AuditExportRequest(programId = world.second.programId))
@@ -196,8 +198,27 @@ class AuditExportTest {
 
         val export = audit.export(ops, AuditExportRequest(supplierId = supplierId))
 
-        assertTrue(export.csv.contains("'$hostileName"), export.csv)
-        assertFalse(export.csv.contains(",$hostileName"), export.csv)
+        assertTrue(text(export).contains("'$hostileName"), text(export))
+        assertFalse(text(export).contains(",$hostileName"), text(export))
+    }
+
+    @Test
+    fun `the PDF is the same history in the form that gets attached to an audit response`() {
+        val ops = staffActor(Role.OPS)
+        val world = twoSuppliersInDifferentPrograms(ops)
+        val filter = AuditExportRequest(supplierId = world.first.supplierId)
+
+        val csv = audit.export(ops, filter, AuditExportFormat.CSV)
+        val pdf = audit.export(ops, filter, AuditExportFormat.PDF)
+
+        // Same query, same events — the format is about the recipient, not the
+        // contents. (One more event in the CSV: the PDF export that preceded it
+        // was itself recorded.)
+        assertEquals(csv.rowCount + 1, pdf.rowCount)
+        assertTrue(pdf.filename.endsWith(".pdf"), pdf.filename)
+        assertEquals("application/pdf", pdf.contentType)
+        assertTrue(pdf.bytes.size > csv.bytes.size, "a PDF of the same events should not be smaller")
+        assertEquals("%PDF", String(pdf.bytes.copyOfRange(0, 4), Charsets.US_ASCII))
     }
 
     @Test
@@ -275,6 +296,9 @@ class AuditExportTest {
     private fun twoSuppliersInDifferentPrograms(ops: Actor): Pair<SupplierWorld, SupplierWorld> =
         supplier(ops, "Northwind Clinical ${unique()}", program()) to
             supplier(ops, "Beacon Facilities ${unique()}", program())
+
+    /** Every export is bytes; the CSV ones are text once you say so. */
+    private fun text(export: AuditExport): String = String(export.bytes, Charsets.UTF_8)
 
     /** The byte-order mark is for Excel, not for assertions. */
     private fun headerOf(csv: String): List<String> =

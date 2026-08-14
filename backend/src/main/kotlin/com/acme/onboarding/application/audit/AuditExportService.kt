@@ -5,6 +5,7 @@ import com.acme.onboarding.adapter.persistence.AuditExportQuery
 import com.acme.onboarding.adapter.persistence.AuditExportRow
 import com.acme.onboarding.adapter.persistence.CatalogRepository
 import com.acme.onboarding.adapter.persistence.UserRepository
+import com.acme.onboarding.application.document.SimpleDocumentRenderer
 import com.acme.onboarding.application.supplier.SupplierService
 import com.acme.onboarding.application.support.Csv
 import com.acme.onboarding.application.support.InvalidRequestException
@@ -16,6 +17,7 @@ import com.acme.onboarding.domain.user.Actor
 import com.acme.onboarding.domain.user.Role
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Instant
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -29,10 +31,25 @@ data class AuditExportRequest(
     val to: LocalDate? = null,
 )
 
+/**
+ * The two shapes an auditor asks for.
+ *
+ * CSV is the working format — filtered, sorted, pivoted, and the only sane
+ * answer above a few thousand events. PDF is the handover format: one document,
+ * paginated, that reads the same in five years as it does today and does not
+ * invite editing. Same query, same rows, same event count; the difference is
+ * what the person on the other end does with it.
+ */
+enum class AuditExportFormat(val extension: String, val contentType: String) {
+    CSV("csv", "text/csv; charset=UTF-8"),
+    PDF("pdf", "application/pdf"),
+}
+
 /** A rendered export, ready to be handed to the browser. */
 data class AuditExport(
     val filename: String,
-    val csv: String,
+    val contentType: String,
+    val bytes: ByteArray,
     val rowCount: Int,
 )
 
@@ -73,11 +90,16 @@ class AuditExportService(
     private val catalog: CatalogRepository,
     private val users: UserRepository,
     private val recorder: ActivityRecorder,
+    private val pdf: SimpleDocumentRenderer,
     private val properties: AcmeProperties,
 ) {
 
     @Transactional
-    fun export(actor: Actor, request: AuditExportRequest): AuditExport {
+    fun export(
+        actor: Actor,
+        request: AuditExportRequest,
+        format: AuditExportFormat = AuditExportFormat.CSV,
+    ): AuditExport {
         requireStaff(actor)
 
         if (request.from != null && request.to != null && request.from.isAfter(request.to)) {
@@ -123,6 +145,17 @@ class AuditExportService(
             )
         }
 
+        // The PDF cap is far lower on purpose. Past a couple of thousand events
+        // it is hundreds of pages nobody reads, and the honest answer is the
+        // format built for that volume rather than a document that pretends to
+        // be readable.
+        if (format == AuditExportFormat.PDF && rows.size > MAX_PDF_ROWS) {
+            throw InvalidRequestException(
+                "$MAX_PDF_ROWS events is about as much as a PDF is worth reading. Narrow the range for " +
+                    "the document, or take the CSV — it holds the same events either way.",
+            )
+        }
+
         recorder.record(
             action = AuditAction.AUDIT_EXPORTED,
             subjectType = "AUDIT_LOG",
@@ -134,7 +167,7 @@ class AuditExportService(
             // and goes to the system chain.
             supplierId = request.supplierId,
             after = mapOf(
-                "format" to "CSV",
+                "format" to format.name,
                 "supplier" to supplierName,
                 "program" to program?.code,
                 "from" to request.from?.toString(),
@@ -143,11 +176,71 @@ class AuditExportService(
             ),
         )
 
+        val bytes = when (format) {
+            AuditExportFormat.CSV -> Csv.render(HEADER, rows.map(::toCsvRow)).toByteArray(Charsets.UTF_8)
+            AuditExportFormat.PDF -> pdf.render(
+                title = "Acme supplier onboarding — activity history",
+                lines = pdfLines(rows, supplierName, program?.name, request),
+            )
+        }
+
         return AuditExport(
-            filename = filename(supplierName, program?.code),
-            csv = Csv.render(HEADER, rows.map(::toCsvRow)),
+            filename = filename(supplierName, program?.code, format),
+            contentType = format.contentType,
+            bytes = bytes,
             rowCount = rows.size,
         )
+    }
+
+    /**
+     * The PDF, as an auditor reads it: a cover block saying exactly what was
+     * asked for, then one paragraph per event in the order they happened.
+     *
+     * Written as lines rather than as a layout because the renderer is the same
+     * one that produces executed agreements, and an audit document has the same
+     * requirement as a signed one — legible, complete, and boring.
+     */
+    private fun pdfLines(
+        rows: List<AuditExportRow>,
+        supplierName: String?,
+        programName: String?,
+        request: AuditExportRequest,
+    ): List<String> = buildList {
+        add("Generated: ${DateTimeFormatter.ISO_INSTANT.format(Instant.now())}")
+        add("Supplier: ${supplierName ?: "every supplier in scope"}")
+        add("Program: ${programName ?: "every program"}")
+        add(
+            "Period: " + when {
+                request.from != null && request.to != null -> "${request.from} to ${request.to}"
+                request.from != null -> "from ${request.from}"
+                request.to != null -> "up to ${request.to}"
+                else -> "the whole history"
+            } + " (dates in ${properties.businessTimeZone})",
+        )
+        add("Events: ${rows.size}")
+        add("")
+        add(
+            "Every event below is held in an append-only, hash-chained log. Each line's " +
+                "position and hash are printed so this document can be checked against the system " +
+                "it came from. Tax IDs and bank details never appear: the log records that they " +
+                "were set, never what they were set to.",
+        )
+        add("")
+
+        rows.forEach { row ->
+            add("${DateTimeFormatter.ISO_INSTANT.format(row.occurredAt)}  ${row.action}")
+            row.supplierLegalName?.let { name ->
+                val programs = row.programCodes.joinToString(" ").ifBlank { "no programs" }
+                add("    Supplier: $name ($programs)")
+            }
+            add("    By: ${row.actorLabel}")
+            add("    Subject: ${row.subjectType}${row.subjectId?.let { " $it" } ?: ""}")
+            row.beforeState?.let { add("    Before: $it") }
+            row.afterState?.let { add("    After: $it") }
+            row.requestOrigin?.let { add("    Origin: $it") }
+            add("    Chain: ${row.chainKey} #${row.sequence}  hash ${row.eventHash}")
+            add("")
+        }
     }
 
     /**
@@ -222,10 +315,10 @@ class AuditExportService(
      * Auditors receive several of these, and `export(3).csv` in a downloads
      * folder is how the wrong period gets attached to a response.
      */
-    private fun filename(supplierName: String?, programCode: String?): String {
+    private fun filename(supplierName: String?, programCode: String?, format: AuditExportFormat): String {
         val scope = supplierName?.let(::slug) ?: programCode?.let(::slug) ?: "all-suppliers"
         val today = LocalDate.now(properties.businessTimeZone)
-        return "acme-audit-$scope-$today.csv"
+        return "acme-audit-$scope-$today.${format.extension}"
     }
 
     private fun slug(value: String): String =
@@ -247,6 +340,9 @@ class AuditExportService(
          * is the one thing an export like this must never do.
          */
         const val MAX_ROWS = 50_000
+
+        /** A document, not a database dump: roughly two hundred readable pages. */
+        const val MAX_PDF_ROWS = 2_000
 
         val HEADER = listOf(
             "occurred_at_utc",

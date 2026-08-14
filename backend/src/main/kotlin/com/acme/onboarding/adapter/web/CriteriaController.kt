@@ -2,6 +2,7 @@ package com.acme.onboarding.adapter.web
 
 import com.acme.onboarding.adapter.persistence.AcceptanceCriterionRecord
 import com.acme.onboarding.application.criteria.CriteriaChecklist
+import com.acme.onboarding.application.criteria.CriteriaPrefillService
 import com.acme.onboarding.application.criteria.CriteriaReviewService
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -27,7 +28,10 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api")
 @Tag(name = "Acceptance criteria")
-class CriteriaController(private val criteria: CriteriaReviewService) {
+class CriteriaController(
+    private val criteria: CriteriaReviewService,
+    private val prefillService: CriteriaPrefillService,
+) {
 
     data class CriteriaBody(val criteria: List<String>)
 
@@ -56,6 +60,15 @@ class CriteriaController(private val criteria: CriteriaReviewService) {
     @Operation(summary = "The criteria checklist for one submission, with any verdicts so far")
     fun checklist(@PathVariable submissionId: UUID): CriteriaChecklist =
         criteria.checklist(CurrentActor.require(), submissionId)
+
+    /**
+     * Advisory by construction: this fills the checklist in and changes nothing
+     * about the document's status. A reviewer still decides.
+     */
+    @PostMapping("/documents/{submissionId}/criteria/prefill")
+    @Operation(summary = "Ask the model to prefill the checklist; a person still decides")
+    fun prefill(@PathVariable submissionId: UUID): CriteriaChecklist =
+        prefillService.prefill(CurrentActor.require(), submissionId)
 
     @PostMapping("/documents/{submissionId}/criteria/{criterionId}")
     @Operation(summary = "Record a reviewer's verdict on one criterion")

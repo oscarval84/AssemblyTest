@@ -62,13 +62,23 @@ export default function ReviewDialog({
   const [mode, setMode] = useState<'decide' | 'reject'>('decide')
   const [reasonCode, setReasonCode] = useState('')
   const [note, setNote] = useState('')
+  /**
+   * Set when the reviewer rejected from a failed criterion. That criterion *is*
+   * the reason — its own wording reaches the supplier — so the catalog dropdown
+   * is not offered. An earlier version sent a fixed catalog code alongside every
+   * criterion-based rejection, which told a supplier with an unsigned
+   * certificate that their coverage was too low.
+   */
+  const [criterion, setCriterion] = useState<{ id: string; text: string } | null>(null)
 
   const failure = decide.error instanceof RequestFailed ? decide.error.message : null
+  const canSubmit = criterion !== null || reasonCode !== ''
 
   function close() {
     decide.reset()
     setMode('decide')
     setReasonCode('')
+    setCriterion(null)
     setNote('')
     onClose()
   }
@@ -82,7 +92,8 @@ export default function ReviewDialog({
     event.preventDefault()
     await decide.mutateAsync({
       submissionId: target.submissionId,
-      reasonCode,
+      criterionId: criterion?.id,
+      reasonCode: criterion ? undefined : reasonCode,
       note: note.trim() || null,
     })
     close()
@@ -133,10 +144,13 @@ export default function ReviewDialog({
             {mode === 'decide' ? (
               <CriteriaChecklist
                 submissionId={target.submissionId}
-                onRejectWith={async (criterionId) => {
-                  // The criterion's own wording, plus what the document showed.
+                onRejectWith={async (criterionId, text) => {
+                  // The criterion is the reason. The note carries what the
+                  // document actually showed, which is the half that turns
+                  // three resubmissions into one.
                   setNote(await rejectionNoteFor(target.submissionId, criterionId))
-                  setReasonCode('INSUFFICIENT_COVERAGE')
+                  setCriterion({ id: criterionId, text })
+                  setReasonCode('')
                   setMode('reject')
                 }}
               />
@@ -144,21 +158,38 @@ export default function ReviewDialog({
 
             {mode === 'reject' ? (
               <>
-                <TextField
-                  select
-                  required
-                  label="Reason"
-                  fullWidth
-                  value={reasonCode}
-                  onChange={(event) => setReasonCode(event.target.value)}
-                  helperText="The supplier sees this, so it has to make sense to them."
-                >
-                  {(reasons.data ?? []).map((reason) => (
-                    <MenuItem key={reason.code} value={reason.code}>
-                      {reason.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                {criterion ? (
+                  <Field label="Reason — the criterion this failed">
+                    {criterion.text}
+                    <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                      The supplier reads this wording verbatim.{' '}
+                      <Link
+                        component="button"
+                        type="button"
+                        variant="caption"
+                        onClick={() => setCriterion(null)}
+                      >
+                        Use a reason from the catalog instead
+                      </Link>
+                    </Typography>
+                  </Field>
+                ) : (
+                  <TextField
+                    select
+                    required
+                    label="Reason"
+                    fullWidth
+                    value={reasonCode}
+                    onChange={(event) => setReasonCode(event.target.value)}
+                    helperText="For what a criterion cannot express — an illegible scan, or the wrong document."
+                  >
+                    {(reasons.data ?? []).map((reason) => (
+                      <MenuItem key={reason.code} value={reason.code}>
+                        {reason.label}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                )}
 
                 <TextField
                   label="Note to the supplier"
@@ -207,7 +238,7 @@ export default function ReviewDialog({
               <Button color="inherit" onClick={() => setMode('decide')}>
                 Back
               </Button>
-              <Button type="submit" variant="contained" color="error" disabled={!reasonCode || decide.isPending}>
+              <Button type="submit" variant="contained" color="error" disabled={!canSubmit || decide.isPending}>
                 {decide.isPending ? 'Sending…' : 'Send it back'}
               </Button>
             </>

@@ -1,5 +1,7 @@
 package com.acme.onboarding.adapter.web
 
+import com.acme.onboarding.application.audit.AuditExport
+import com.acme.onboarding.application.audit.AuditExportFormat
 import com.acme.onboarding.application.audit.AuditExportRequest
 import com.acme.onboarding.application.audit.AuditExportService
 import com.acme.onboarding.application.audit.ChainVerificationView
@@ -35,19 +37,44 @@ class AuditController(private val audit: AuditExportService) {
 
     @GetMapping("/export.csv", produces = ["text/csv"])
     @Operation(summary = "The activity history as a CSV, filtered by supplier, program and date range")
-    fun export(
+    fun exportCsv(
         @RequestParam(required = false) supplierId: UUID?,
         @RequestParam(required = false) programId: UUID?,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
-    ): ResponseEntity<ByteArray> {
-        val export = audit.export(
+    ): ResponseEntity<ByteArray> = respond(
+        audit.export(
             CurrentActor.require(),
             AuditExportRequest(supplierId = supplierId, programId = programId, from = from, to = to),
-        )
+            AuditExportFormat.CSV,
+        ),
+    )
 
-        return ResponseEntity.ok()
-            .contentType(MediaType.parseMediaType("text/csv; charset=UTF-8"))
+    /**
+     * The same events, as a document rather than a spreadsheet.
+     *
+     * Two formats because the recipients differ: the CSV goes to whoever will
+     * filter and pivot it, and the PDF is what actually gets attached to an
+     * audit response — paginated, unedited, and readable without a spreadsheet.
+     */
+    @GetMapping("/export.pdf", produces = ["application/pdf"])
+    @Operation(summary = "The same activity history as a paginated PDF, for handing over")
+    fun exportPdf(
+        @RequestParam(required = false) supplierId: UUID?,
+        @RequestParam(required = false) programId: UUID?,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+    ): ResponseEntity<ByteArray> = respond(
+        audit.export(
+            CurrentActor.require(),
+            AuditExportRequest(supplierId = supplierId, programId = programId, from = from, to = to),
+            AuditExportFormat.PDF,
+        ),
+    )
+
+    private fun respond(export: AuditExport): ResponseEntity<ByteArray> =
+        ResponseEntity.ok()
+            .contentType(MediaType.parseMediaType(export.contentType))
             .header(
                 HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.attachment().filename(export.filename).build().toString(),
@@ -56,8 +83,7 @@ class AuditController(private val audit: AuditExportService) {
             // So a caller scripting this — or a test — can assert on how many
             // events came back without parsing the file.
             .header("X-Audit-Row-Count", export.rowCount.toString())
-            .body(export.csv.toByteArray(Charsets.UTF_8))
-    }
+            .body(export.bytes)
 
     @GetMapping("/chains/{chainKey}/verification")
     @Operation(summary = "Walk one chain and report the first break, if there is one")

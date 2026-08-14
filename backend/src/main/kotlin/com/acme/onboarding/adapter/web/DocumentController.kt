@@ -4,8 +4,10 @@ import com.acme.onboarding.adapter.persistence.RejectionReasonRecord
 import com.acme.onboarding.application.document.DocumentReviewService
 import com.acme.onboarding.application.document.DocumentService
 import com.acme.onboarding.application.document.DownloadResult
+import com.acme.onboarding.application.document.RejectionGrounds
 import com.acme.onboarding.application.document.ReviewQueueItem
 import com.acme.onboarding.application.document.SignatureService
+import com.acme.onboarding.application.support.InvalidRequestException
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
 import jakarta.validation.Valid
@@ -36,12 +38,30 @@ class DocumentController(
     private val review: DocumentReviewService,
 ) {
 
+    /**
+     * Exactly one kind of grounds, never both.
+     *
+     * [criterionId] is the primary path — a criterion the reviewer failed the
+     * document on, quoted back to the supplier in Acme's own words. [reasonCode]
+     * covers what criteria cannot express: an illegible scan, the wrong document
+     * entirely.
+     */
     data class RejectBody(
-        @field:NotBlank(message = "Choose a reason.")
-        val reasonCode: String,
+        val criterionId: UUID? = null,
+        val reasonCode: String? = null,
         /** Optional, and the difference between a reason and an explanation. */
         val note: String? = null,
-    )
+    ) {
+        fun grounds(): RejectionGrounds = when {
+            criterionId != null && reasonCode != null -> throw InvalidRequestException(
+                "A rejection rests on one thing: a failed criterion, or a reason from the catalog.",
+            )
+
+            criterionId != null -> RejectionGrounds.Criterion(criterionId)
+            !reasonCode.isNullOrBlank() -> RejectionGrounds.CatalogReason(reasonCode)
+            else -> throw InvalidRequestException("Choose a reason the supplier will understand.")
+        }
+    }
 
     data class SignBody(
         val supplierId: UUID,
@@ -94,7 +114,7 @@ class DocumentController(
     @Operation(summary = "Hand a document back with a reason the supplier can act on")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun reject(@PathVariable id: UUID, @Valid @RequestBody body: RejectBody) =
-        review.reject(CurrentActor.require(), id, body.reasonCode, body.note)
+        review.reject(CurrentActor.require(), id, body.grounds(), body.note)
 
     @GetMapping("/agreement")
     @Operation(summary = "The agreement text and its hash, as shown before signing")

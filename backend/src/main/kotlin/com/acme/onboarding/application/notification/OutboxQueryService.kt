@@ -29,6 +29,15 @@ data class OutboxEntry(
 data class OutboxView(
     /** What is draining the outbox in this environment, named rather than implied. */
     val transport: String,
+    /**
+     * Whether anything actually leaves the building.
+     *
+     * Separate from the name because a name can be aspirational: `smtp` with no
+     * mail host configured registers no transport, and a screen that reported
+     * delivery as on because a setting said so would be lying about the one
+     * thing it exists to answer.
+     */
+    val deliveryEnabled: Boolean,
     val entries: List<OutboxEntry>,
 )
 
@@ -45,7 +54,7 @@ data class OutboxView(
 class OutboxQueryService(
     private val outbox: EmailOutboxRepository,
     private val suppliers: SupplierRepository,
-    private val properties: AcmeProperties,
+    private val delivery: MailDelivery,
 ) {
 
     @Transactional(readOnly = true)
@@ -57,7 +66,8 @@ class OutboxQueryService(
             .associateWith { suppliers.findById(it)?.legalName }
 
         return OutboxView(
-            transport = properties.mail.transport,
+            transport = delivery.configuredName,
+            deliveryEnabled = delivery.enabled,
             entries = records.map { it.toEntry(names[it.supplierId]) },
         )
     }

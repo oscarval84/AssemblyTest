@@ -5,6 +5,7 @@ import com.acme.onboarding.adapter.persistence.UserRepository
 import com.acme.onboarding.application.auth.InvitationService
 import com.acme.onboarding.application.document.DocumentReviewService
 import com.acme.onboarding.application.document.DocumentService
+import com.acme.onboarding.application.document.RejectionGrounds
 import com.acme.onboarding.application.document.UploadRequest
 import com.acme.onboarding.application.supplier.NewSupplierRequest
 import com.acme.onboarding.application.supplier.ProfileUpdateRequest
@@ -104,7 +105,7 @@ class DocumentReviewTest {
         review.reject(
             actor = ops,
             submissionId = submissionId,
-            reasonCode = "ILLEGIBLE",
+            grounds = RejectionGrounds.CatalogReason("ILLEGIBLE"),
             note = "The bottom third of the form is cut off.",
         )
 
@@ -136,7 +137,7 @@ class DocumentReviewTest {
         val ops = staffActor(Role.OPS)
         val world = onboardSupplier(ops, listOf("W9"))
         val first = upload(world.supplierUser, world.supplierId, "W9", null)
-        review.reject(ops, first, "ILLEGIBLE", null)
+        review.reject(ops, first, RejectionGrounds.CatalogReason("ILLEGIBLE"), null)
 
         val second = upload(world.supplierUser, world.supplierId, "W9", null)
 

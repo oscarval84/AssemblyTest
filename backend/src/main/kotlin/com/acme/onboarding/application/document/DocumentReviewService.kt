@@ -1,6 +1,7 @@
 package com.acme.onboarding.application.document
 
 import com.acme.onboarding.adapter.persistence.CatalogRepository
+import com.acme.onboarding.adapter.persistence.CriteriaRepository
 import com.acme.onboarding.adapter.persistence.EnrollmentRepository
 import com.acme.onboarding.adapter.persistence.RejectionReasonRecord
 import com.acme.onboarding.adapter.persistence.SubmissionRecord
@@ -50,6 +51,21 @@ data class ReviewQueueItem(
 )
 
 /**
+ * What a rejection is grounded in.
+ *
+ * Two kinds, and a rejection carries exactly one. The criterion is the primary
+ * path — Acme's own wording, versioned, quoted back to the supplier verbatim —
+ * and the catalog covers what a criterion cannot express: an illegible scan, or
+ * the wrong document entirely. Modelling them as alternatives rather than as a
+ * code plus an optional criterion is what stopped the UI having to send a
+ * plausible-looking code alongside every criterion-based rejection.
+ */
+sealed interface RejectionGrounds {
+    data class Criterion(val criterionId: UUID) : RejectionGrounds
+    data class CatalogReason(val code: String) : RejectionGrounds
+}
+
+/**
  * Ops' decision on a submitted document.
  *
  * Two rules shape everything here, and both come from what the client said went
@@ -65,6 +81,7 @@ class DocumentReviewService(
     private val suppliers: SupplierRepository,
     private val enrollments: EnrollmentRepository,
     private val catalog: CatalogRepository,
+    private val criteria: CriteriaRepository,
     private val users: UserRepository,
     private val assembler: SupplierAssembler,
     private val progression: StageProgression,
@@ -117,6 +134,7 @@ class DocumentReviewService(
             status = SubmissionStatus.APPROVED,
             reviewerId = actor.userId,
             rejectionReasonCode = null,
+            rejectionCriterionId = null,
             rejectionNote = null,
             at = Instant.now(clock),
         )
@@ -138,19 +156,47 @@ class DocumentReviewService(
         settle(actor, submission.supplierId, rejected = false)
     }
 
+    /**
+     * Hands a document back, in the words the supplier will read.
+     *
+     * The grounds decide those words: a criterion is quoted verbatim — *"the
+     * general liability aggregate is at least USD 2,000,000"* — and a catalog
+     * reason uses its label. Either way the supplier is told what is wrong with
+     * the document in front of them rather than that something is, which is the
+     * difference between one resubmission and three.
+     */
     @Transactional
-    fun reject(actor: Actor, submissionId: UUID, reasonCode: String, note: String?) {
+    fun reject(actor: Actor, submissionId: UUID, grounds: RejectionGrounds, note: String?) {
         val submission = reviewable(actor, submissionId)
+        val cleanNote = note?.trim()?.takeIf { it.isNotEmpty() }
 
-        val reason = catalog.rejectionReasons().firstOrNull { it.code == reasonCode }
-            ?: throw InvalidRequestException("Choose a reason the supplier will understand.")
+        val (reasonCode, criterionId, label) = when (grounds) {
+            is RejectionGrounds.CatalogReason -> {
+                val reason = catalog.rejectionReasons().firstOrNull { it.code == grounds.code }
+                    ?: throw InvalidRequestException("Choose a reason the supplier will understand.")
+                Triple(reason.code, null, reason.label)
+            }
+
+            is RejectionGrounds.Criterion -> {
+                // Read from the version in force rather than from the verdict,
+                // so a rejection can never quote criteria text that has since
+                // been retired — the supplier would be asked to meet a
+                // requirement Acme no longer has.
+                val criterion = criteria.currentByIds(listOf(grounds.criterionId))[grounds.criterionId]
+                    ?: throw InvalidRequestException(
+                        "That criterion is no longer part of the current version. Reload the checklist.",
+                    )
+                Triple(null, criterion.id, criterion.text)
+            }
+        }
 
         submissions.recordReview(
             id = submission.id,
             status = SubmissionStatus.REJECTED,
             reviewerId = actor.userId,
-            rejectionReasonCode = reason.code,
-            rejectionNote = note?.trim()?.takeIf { it.isNotEmpty() },
+            rejectionReasonCode = reasonCode,
+            rejectionCriterionId = criterionId,
+            rejectionNote = cleanNote,
             at = Instant.now(clock),
         )
 
@@ -164,8 +210,12 @@ class DocumentReviewService(
             after = mapOf(
                 "status" to SubmissionStatus.REJECTED.name,
                 "documentType" to submission.documentTypeCode,
-                "reason" to reason.code,
-                "note" to note,
+                "groundedIn" to if (criterionId != null) "CRITERION" else "CATALOG_REASON",
+                "reason" to (reasonCode ?: criterionId?.toString()),
+                // The wording itself, so the audit trail holds what the supplier
+                // was actually told even after the criteria move on.
+                "toldTheSupplier" to label,
+                "note" to cleanNote,
             ),
         )
 
@@ -175,8 +225,8 @@ class DocumentReviewService(
                 recipientName = name,
                 supplierId = submission.supplierId,
                 documentName = submission.documentTypeName,
-                reasonLabel = reason.label,
-                note = note?.trim()?.takeIf { it.isNotEmpty() },
+                reasonLabel = label,
+                note = cleanNote,
             )
         }
 

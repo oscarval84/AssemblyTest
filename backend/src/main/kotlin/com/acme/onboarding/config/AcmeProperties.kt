@@ -24,6 +24,7 @@ data class AcmeProperties(
     val demo: Demo,
     val security: Security,
     val jobs: Jobs,
+    val ai: Ai,
     val portalBaseUrl: String,
 ) {
     data class Compliance(val expiryWarningDays: Long)
@@ -67,6 +68,18 @@ data class AcmeProperties(
      * shared secret below is the local and defence-in-depth equivalent.
      */
     data class Jobs(val token: String)
+
+    /**
+     * The model behind criteria prefill.
+     *
+     * [apiKey] is blank in every environment that has not enabled it, and that
+     * is the switch: no key, no adapter, and the checklist is filled in by a
+     * person — which is the fallback the design requires anyway.
+     */
+    data class Ai(
+        val apiKey: String,
+        val model: String,
+    )
 
     data class Security(
         val fieldEncryptionKey: String,

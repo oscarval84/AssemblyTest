@@ -256,6 +256,7 @@ class DemoDataSeeder(
             status = SubmissionStatus.REJECTED,
             reviewerId = staff.ops.userId,
             rejectionReasonCode = "ILLEGIBLE",
+            rejectionCriterionId = null,
             rejectionNote = "Page 2 is cut off on the right edge — the general liability limit is not readable.",
             at = clock.instant(),
         )
@@ -435,6 +436,7 @@ class DemoDataSeeder(
             status = SubmissionStatus.APPROVED,
             reviewerId = reviewer.userId,
             rejectionReasonCode = null,
+            rejectionCriterionId = null,
             rejectionNote = null,
             at = clock.instant(),
         )

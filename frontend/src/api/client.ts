@@ -122,7 +122,13 @@ export interface AuditExportFilter {
   to?: string | null
 }
 
-export function auditExportUrl(filter: AuditExportFilter): string {
+/**
+ * CSV for the person who will filter and pivot it; PDF for the one that gets
+ * attached to an audit response. Same events either way.
+ */
+export type AuditExportFormat = 'csv' | 'pdf'
+
+export function auditExportUrl(filter: AuditExportFilter, format: AuditExportFormat = 'csv'): string {
   const query = new URLSearchParams()
   if (filter.supplierId) query.set('supplierId', filter.supplierId)
   if (filter.programId) query.set('programId', filter.programId)
@@ -130,7 +136,7 @@ export function auditExportUrl(filter: AuditExportFilter): string {
   if (filter.to) query.set('to', filter.to)
 
   const search = query.toString()
-  return `/api/audit/export.csv${search ? `?${search}` : ''}`
+  return `/api/audit/export.${format}${search ? `?${search}` : ''}`
 }
 
 /**
@@ -143,8 +149,11 @@ export function auditExportUrl(filter: AuditExportFilter): string {
  * they will not open until they have already sent it on. Reading the response
  * first means the message reaches the screen instead.
  */
-export async function downloadAuditExport(filter: AuditExportFilter): Promise<number> {
-  const response = await fetch(auditExportUrl(filter), { credentials: 'include' })
+export async function downloadAuditExport(
+  filter: AuditExportFilter,
+  format: AuditExportFormat = 'csv',
+): Promise<number> {
+  const response = await fetch(auditExportUrl(filter, format), { credentials: 'include' })
 
   if (!response.ok) {
     const error = (await response.json().catch(() => undefined)) as ApiError | undefined
@@ -158,7 +167,7 @@ export async function downloadAuditExport(filter: AuditExportFilter): Promise<nu
   // The server names the file after what is in it; keep that name rather than
   // inventing one here, so two exports never collide in a downloads folder.
   const disposition = response.headers.get('Content-Disposition') ?? ''
-  const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'acme-audit-export.csv'
+  const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? `acme-audit-export.${format}`
   const rowCount = Number(response.headers.get('X-Audit-Row-Count') ?? '0')
 
   const objectUrl = URL.createObjectURL(await response.blob())

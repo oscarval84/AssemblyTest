@@ -140,6 +140,13 @@ object AuditAction {
      */
     const val AUDIT_EXPORTED = "AUDIT_EXPORTED"
 
+    /**
+     * A document was transmitted to an external processor — today the model that
+     * prefills criteria. Recorded before the transmission, not after, so a call
+     * that fails still leaves the record that the document left the building.
+     */
+    const val DOCUMENT_DISCLOSED = "DOCUMENT_DISCLOSED"
+
     const val VMS_UPDATE_SENT = "VMS_UPDATE_SENT"
     const val VMS_CONFLICT_RAISED = "VMS_CONFLICT_RAISED"
 

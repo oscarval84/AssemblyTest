@@ -30,10 +30,20 @@ dependencies {
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 
+	// Delivers the outbox when a mail host is configured. Without one, the
+	// starter is inert: no JavaMailSender is auto-configured and the SMTP
+	// transport does not register.
+	implementation("org.springframework.boot:spring-boot-starter-mail")
+
 	// Publishes the OpenAPI spec the frontend generates its typed client from.
 	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0")
-	// Renders the executed agreement PDF at signing time.
+	// Renders the executed agreement PDF at signing time, and the auditor export.
 	implementation("org.apache.pdfbox:pdfbox:3.0.8")
+
+	// Criteria prefill. Kotlin uses Anthropic's Java SDK; the adapter is inert
+	// until an API key is configured, so this dependency costs a jar and nothing
+	// else in an environment that has not enabled the model.
+	implementation("com.anthropic:anthropic-java:2.34.0")
 
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")

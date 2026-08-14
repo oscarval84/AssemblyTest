@@ -31,6 +31,8 @@ data class SubmissionRecord(
     val expiresOn: LocalDate?,
     val rejectionReasonCode: String?,
     val rejectionReasonLabel: String?,
+    /** Set when the rejection was grounded in an authored criterion instead. */
+    val rejectionCriterionId: UUID?,
     val rejectionNote: String?,
     val uploadedBy: UUID?,
     val uploadedByName: String?,
@@ -151,11 +153,17 @@ class SubmissionRepository(private val db: JdbcClient) {
             .param("uploadedBy", submission.uploadedBy?.toString())
             .query(UUID::class.java).single()
 
+    /**
+     * Records a decision. A rejection carries exactly one kind of grounds — an
+     * authored criterion or a catalog reason — and the schema refuses both at
+     * once (V8), so callers pass one and null for the other.
+     */
     fun recordReview(
         id: UUID,
         status: SubmissionStatus,
         reviewerId: UUID,
         rejectionReasonCode: String?,
+        rejectionCriterionId: UUID?,
         rejectionNote: String?,
         at: Instant,
     ) {
@@ -166,6 +174,7 @@ class SubmissionRepository(private val db: JdbcClient) {
                    reviewed_by = :reviewerId,
                    reviewed_at = :at,
                    rejection_reason_code = :reasonCode,
+                   rejection_criterion_id = CAST(:criterionId AS uuid),
                    rejection_note = :note
              WHERE id = :id
             """,
@@ -174,6 +183,7 @@ class SubmissionRepository(private val db: JdbcClient) {
             .param("reviewerId", reviewerId)
             .param("at", at.asParam())
             .param("reasonCode", rejectionReasonCode)
+            .param("criterionId", rejectionCriterionId?.toString())
             .param("note", rejectionNote)
             .param("id", id)
             .update()
@@ -194,14 +204,21 @@ class SubmissionRepository(private val db: JdbcClient) {
             SELECT s.id, s.supplier_id, s.document_type_id, s.enrollment_id, s.version, s.is_current,
                    s.storage_key, s.original_filename, s.content_type, s.size_bytes, s.checksum_sha256,
                    s.status, s.issued_on, s.expires_on, s.rejection_reason_code, s.rejection_note,
+                   s.rejection_criterion_id,
                    s.uploaded_by, s.uploaded_at, s.reviewed_by, s.reviewed_at,
                    t.code AS type_code, t.name AS type_name, t.scope, t.expiring, t.classification,
-                   r.label AS rejection_label,
+                   -- One supplier-facing label whichever way the rejection was
+                   -- grounded: the criterion's own wording when there is one,
+                   -- the catalog label otherwise. Every screen and every email
+                   -- reads this column, so neither path can drift into
+                   -- describing the rejection differently.
+                   COALESCE(r.label, ac.text) AS rejection_label,
                    up.full_name AS uploaded_by_name,
                    rv.full_name AS reviewed_by_name
               FROM document_submission s
               JOIN document_type t ON t.id = s.document_type_id
               LEFT JOIN rejection_reason r ON r.code = s.rejection_reason_code
+              LEFT JOIN acceptance_criterion ac ON ac.id = s.rejection_criterion_id
               LEFT JOIN app_user up ON up.id = s.uploaded_by
               LEFT JOIN app_user rv ON rv.id = s.reviewed_by
         """
@@ -228,6 +245,7 @@ class SubmissionRepository(private val db: JdbcClient) {
             expiresOn = rs.localDateOrNull("expires_on"),
             rejectionReasonCode = rs.getString("rejection_reason_code"),
             rejectionReasonLabel = rs.getString("rejection_label"),
+            rejectionCriterionId = rs.uuidOrNull("rejection_criterion_id"),
             rejectionNote = rs.getString("rejection_note"),
             uploadedBy = rs.uuidOrNull("uploaded_by"),
             uploadedByName = rs.getString("uploaded_by_name"),

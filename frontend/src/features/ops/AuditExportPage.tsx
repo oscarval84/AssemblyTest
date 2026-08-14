@@ -56,6 +56,16 @@ export default function AuditExportPage() {
   const backwards = Boolean(from && to && from > to)
   const failure = exportCsv.error instanceof RequestFailed ? exportCsv.error.message : null
 
+  function download(format: 'csv' | 'pdf') {
+    exportCsv.mutate({
+      supplierId: supplierId || null,
+      programId: programId || null,
+      from: from || null,
+      to: to || null,
+      format,
+    })
+  }
+
   function setFilter(key: string, value: string) {
     const next = new URLSearchParams(params)
     if (value) next.set(key, value)
@@ -171,16 +181,19 @@ export default function AuditExportPage() {
                 <Button
                   variant="contained"
                   disabled={backwards || exportCsv.isPending}
-                  onClick={() =>
-                    exportCsv.mutate({
-                      supplierId: supplierId || null,
-                      programId: programId || null,
-                      from: from || null,
-                      to: to || null,
-                    })
-                  }
+                  onClick={() => download('csv')}
                 >
                   {exportCsv.isPending ? 'Preparing…' : 'Download CSV'}
+                </Button>
+
+                {/* Same events, different recipient: the CSV gets filtered and
+                    pivoted, the PDF gets attached to an audit response. */}
+                <Button
+                  variant="outlined"
+                  disabled={backwards || exportCsv.isPending}
+                  onClick={() => download('pdf')}
+                >
+                  Download PDF
                 </Button>
 
                 <Typography variant="body2" color="text.secondary">

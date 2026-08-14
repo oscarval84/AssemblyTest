@@ -38,18 +38,25 @@ export default function OutboxPage() {
     return <Alert severity="error">We could not load the notification log. Refresh and try again.</Alert>
   }
 
-  const { transport, entries } = outbox.data
+  const { transport, deliveryEnabled, entries } = outbox.data
 
   return (
     <>
       <PageHeader
         title="Notifications"
-        description={
-          transport === 'outbox-only'
-            ? 'Every message this system has produced. Delivery is switched off in this environment, so nothing has left the building — the record of what would have been sent is complete either way.'
-            : 'Every message this system has produced, and whether it was delivered.'
-        }
+        description={deliveryDescription(transport, deliveryEnabled)}
       />
+
+      {/* A configured transport that cannot deliver is a deployment problem, not
+          a posture. It gets a warning rather than a description, because the
+          messages below are queueing up behind it. */}
+      {!deliveryEnabled && transport !== 'outbox-only' ? (
+        <Alert severity="warning" sx={{ mb: 3 }}>
+          Delivery is set to <strong>{transport}</strong>, but no transport by that name is
+          available — for SMTP that means the mail host is not configured. Messages are being
+          written and kept, and none of them are going out.
+        </Alert>
+      ) : null}
 
       {entries.length === 0 ? (
         <EmptyState
@@ -141,5 +148,22 @@ export default function OutboxPage() {
         </Stack>
       )}
     </>
+  )
+}
+
+/**
+ * What this screen is, given what is actually happening to the messages on it.
+ *
+ * The distinction is the product's own rule applied to itself: the outbox row is
+ * written either way, and the page has to say which of "kept" and "delivered"
+ * the reader is looking at rather than let them assume the better one.
+ */
+function deliveryDescription(transport: string, deliveryEnabled: boolean): string {
+  if (deliveryEnabled) {
+    return `Every message this system has produced, and whether it was delivered. Sending through ${transport}.`
+  }
+  return (
+    'Every message this system has produced. Delivery is switched off in this environment, so nothing ' +
+    'has left the building — the record of what would have been sent is complete either way.'
   )
 }

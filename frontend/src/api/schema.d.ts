@@ -210,6 +210,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{submissionId}/criteria/prefill": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask the model to prefill the checklist; a person still decides */
+        post: operations["prefill"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{id}/reject": {
         parameters: {
             query?: never;
@@ -755,6 +772,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/audit/export.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The same activity history as a paginated PDF, for handing over */
+        get: operations["exportPdf"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit/export.csv": {
         parameters: {
             query?: never;
@@ -763,7 +797,7 @@ export interface paths {
             cookie?: never;
         };
         /** The activity history as a CSV, filtered by supplier, program and date range */
-        get: operations["export"];
+        get: operations["exportCsv"];
         put?: never;
         post?: never;
         delete?: never;
@@ -938,8 +972,38 @@ export interface components {
             verdict: string;
             evidence?: string | null;
         };
+        CriteriaChecklist: {
+            /** Format: uuid */
+            submissionId: string;
+            documentTypeName: string;
+            programName?: string | null;
+            /** Format: int32 */
+            criteriaVersion: number;
+            criteria: components["schemas"]["CriterionVerdict"][];
+            modelAvailable: boolean;
+            model?: string | null;
+            failed: components["schemas"]["CriterionVerdict"][];
+            empty: boolean;
+        };
+        CriterionVerdict: {
+            /** Format: uuid */
+            criterionId: string;
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+            /** Format: int32 */
+            criteriaVersion: number;
+            verdict?: string | null;
+            evidence?: string | null;
+            /** Format: double */
+            confidence?: number | null;
+            source?: string | null;
+            decidedByName?: string | null;
+        };
         RejectBody: {
-            reasonCode: string;
+            /** Format: uuid */
+            criterionId?: string | null;
+            reasonCode?: string | null;
             note?: string | null;
         };
         SignBody: {
@@ -1144,6 +1208,7 @@ export interface components {
         };
         OutboxView: {
             transport: string;
+            deliveryEnabled: boolean;
             entries: components["schemas"]["OutboxEntry"][];
         };
         InvitationPreview: {
@@ -1174,32 +1239,6 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             processedAt?: string | null;
-        };
-        CriteriaChecklist: {
-            /** Format: uuid */
-            submissionId: string;
-            documentTypeName: string;
-            programName?: string | null;
-            /** Format: int32 */
-            criteriaVersion: number;
-            criteria: components["schemas"]["CriterionVerdict"][];
-            empty: boolean;
-            failed: components["schemas"]["CriterionVerdict"][];
-        };
-        CriterionVerdict: {
-            /** Format: uuid */
-            criterionId: string;
-            /** Format: int32 */
-            ordinal: number;
-            text: string;
-            /** Format: int32 */
-            criteriaVersion: number;
-            verdict?: string | null;
-            evidence?: string | null;
-            /** Format: double */
-            confidence?: number | null;
-            source?: string | null;
-            decidedByName?: string | null;
         };
         ReviewQueueItem: {
             /** Format: uuid */
@@ -1623,6 +1662,28 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    prefill: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CriteriaChecklist"];
+                };
             };
         };
     };
@@ -2350,7 +2411,32 @@ export interface operations {
             };
         };
     };
-    export: {
+    exportPdf: {
+        parameters: {
+            query?: {
+                supplierId?: string;
+                programId?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                };
+            };
+        };
+    };
+    exportCsv: {
         parameters: {
             query?: {
                 supplierId?: string;

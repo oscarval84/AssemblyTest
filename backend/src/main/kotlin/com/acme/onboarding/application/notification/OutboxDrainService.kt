@@ -44,6 +44,29 @@ class OutboxOnlyTransport : MailTransport {
     }
 }
 
+/**
+ * Which transport is in force, resolved once.
+ *
+ * Two screens ask the same question and must not answer it differently: the
+ * drain asks "can I deliver", and `/ops/outbox` tells ops whether anything is
+ * actually leaving. A configured name is not enough on its own — `smtp` with no
+ * mail host registers no transport at all, and reporting delivery as on because
+ * a string says so is exactly the lie the outbox exists to prevent.
+ */
+@Component
+class MailDelivery(
+    private val transports: List<MailTransport>,
+    private val properties: AcmeProperties,
+) {
+    val configuredName: String get() = properties.mail.transport
+
+    /** Null when nothing can deliver: no such transport, or the demo one. */
+    fun active(): MailTransport? =
+        transports.firstOrNull { it.name == configuredName }?.takeUnless { it is OutboxOnlyTransport }
+
+    val enabled: Boolean get() = active() != null
+}
+
 data class DrainResult(
     val transport: String,
     val attempted: Int,
@@ -64,18 +87,17 @@ data class DrainResult(
 @Service
 class OutboxDrainService(
     private val outbox: EmailOutboxRepository,
-    private val transports: List<MailTransport>,
-    private val properties: AcmeProperties,
+    private val delivery: MailDelivery,
     private val clock: Clock,
 ) {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
     fun drain(batchSize: Int = 50): DrainResult {
-        val configured = properties.mail.transport
-        val transport = transports.firstOrNull { it.name == configured }
+        val configured = delivery.configuredName
+        val transport = delivery.active()
 
-        if (transport == null || transport is OutboxOnlyTransport) {
+        if (transport == null) {
             val pending = outbox.listPending(batchSize).size
             return DrainResult(configured, attempted = pending, sent = 0, failed = 0, deliveryDisabled = true)
         }

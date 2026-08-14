@@ -5,7 +5,8 @@ import ButtonGroup from '@mui/material/ButtonGroup'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { useCriteriaChecklist, useJudgeCriterion } from '../../api/queries'
+import { RequestFailed } from '../../api/client'
+import { useCriteriaChecklist, useJudgeCriterion, usePrefillCriteria } from '../../api/queries'
 import { StatusChip } from '../../components/common'
 import { compliance } from '../../theme/theme'
 
@@ -28,10 +29,12 @@ export default function CriteriaChecklist({
   onRejectWith,
 }: {
   submissionId: string
-  onRejectWith: (criterionId: string) => void
+  /** The criterion's own wording travels with its id: it becomes the reason. */
+  onRejectWith: (criterionId: string, text: string) => void
 }) {
   const checklist = useCriteriaChecklist(submissionId)
   const judge = useJudgeCriterion(submissionId)
+  const prefill = usePrefillCriteria(submissionId)
 
   if (checklist.isPending) {
     return (
@@ -62,10 +65,24 @@ export default function CriteriaChecklist({
         <Typography variant="overline" component="div">
           Acceptance criteria
         </Typography>
-        <Typography variant="caption" color="text.secondary">
+        <Typography variant="caption" color="text.secondary" sx={{ flexGrow: 1 }}>
           {view.programName ? `${view.programName} · ` : ''}version {view.criteriaVersion}
         </Typography>
+
+        {/* Offered only where a model is configured *and* the document's
+            classification permits sending it — a W-9 never shows this. */}
+        {view.modelAvailable ? (
+          <Button size="small" onClick={() => prefill.mutate()} disabled={prefill.isPending}>
+            {prefill.isPending ? 'Reading…' : 'Ask the model'}
+          </Button>
+        ) : null}
       </Stack>
+
+      {prefill.error instanceof RequestFailed ? (
+        <Alert severity="warning" variant="outlined" sx={{ mb: 1.5 }}>
+          {prefill.error.message}
+        </Alert>
+      ) : null}
 
       <Stack spacing={1.5}>
         {view.criteria.map((criterion) => {
@@ -89,9 +106,17 @@ export default function CriteriaChecklist({
                       What the document shows: {criterion.evidence}
                     </Typography>
                   ) : null}
-                  {criterion.decidedByName ? (
+                  {criterion.source === 'MODEL' ? (
                     <Typography variant="caption" color="text.secondary" component="div">
-                      {criterion.source === 'MODEL' ? 'Suggested' : 'Marked'} by {criterion.decidedByName}
+                      Suggested by {view.model ?? 'the model'}
+                      {criterion.confidence != null
+                        ? ` · ${Math.round(criterion.confidence * 100)}% confident`
+                        : ''}
+                      {' · not decided until you say so'}
+                    </Typography>
+                  ) : criterion.decidedByName ? (
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      Marked by {criterion.decidedByName}
                     </Typography>
                   ) : null}
                 </Box>
@@ -112,7 +137,7 @@ export default function CriteriaChecklist({
                   </ButtonGroup>
 
                   {criterion.verdict === 'FAIL' ? (
-                    <Button size="small" color="error" onClick={() => onRejectWith(criterion.criterionId)}>
+                    <Button size="small" color="error" onClick={() => onRejectWith(criterion.criterionId, criterion.text)}>
                       Reject using this
                     </Button>
                   ) : verdict ? (

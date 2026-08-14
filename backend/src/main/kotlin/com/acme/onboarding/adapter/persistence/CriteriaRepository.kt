@@ -54,6 +54,21 @@ class CriteriaRepository(private val db: JdbcClient) {
             .query(::map).list()
     }
 
+    /**
+     * The named criteria, if they are still in force.
+     *
+     * Keyed by id and filtered on `retired_at` so a verdict — the model's or a
+     * reviewer's — can never land against a version that has been superseded
+     * while the document sat in the queue.
+     */
+    fun currentByIds(ids: Collection<UUID>): Map<UUID, AcceptanceCriterionRecord> {
+        if (ids.isEmpty()) return emptyMap()
+        return db.sql("$SELECT WHERE id IN (:ids) AND retired_at IS NULL")
+            .param("ids", ids.toList())
+            .query(::map).list()
+            .associateBy { it.id }
+    }
+
     fun currentVersion(programRequirementId: UUID): Int =
         db.sql(
             """

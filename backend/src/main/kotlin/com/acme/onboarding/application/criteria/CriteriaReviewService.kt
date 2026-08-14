@@ -35,6 +35,14 @@ data class CriteriaChecklist(
     val programName: String?,
     val criteriaVersion: Int,
     val criteria: List<CriterionVerdict>,
+    /**
+     * Whether this document can be prefilled by the model: a model is configured
+     * *and* the document's classification permits sending it to one. False for a
+     * W-9 in every environment, and the screen says which of the two it is.
+     */
+    val modelAvailable: Boolean = false,
+    /** Null when no model is configured; named so a reviewer knows what suggested what. */
+    val model: String? = null,
 ) {
     val failed: List<CriterionVerdict> get() = criteria.filter { it.verdict == "FAIL" }
 
@@ -67,6 +75,7 @@ class CriteriaReviewService(
     private val enrollments: EnrollmentRepository,
     private val catalog: CatalogRepository,
     private val recorder: ActivityRecorder,
+    private val evaluator: CriteriaEvaluator,
 ) {
 
     // -- authoring ------------------------------------------------------------
@@ -135,6 +144,10 @@ class CriteriaReviewService(
             documentTypeName = submission.documentTypeName,
             programName = enrollment?.programName,
             criteriaVersion = current.firstOrNull()?.version ?: 0,
+            // Restricted documents are never sent to an external processor, so
+            // the button is not offered for a W-9 even where a key is set.
+            modelAvailable = evaluator.available && submission.classification != "RESTRICTED",
+            model = evaluator.model.takeIf { evaluator.available },
             criteria = current.map { criterion ->
                 val verdict = verdicts[criterion.id]
                 CriterionVerdict(

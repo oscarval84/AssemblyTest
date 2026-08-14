@@ -1,5 +1,8 @@
 package com.acme.onboarding.config
 
+import com.acme.onboarding.adapter.ai.AnthropicCriteriaEvaluator
+import com.acme.onboarding.application.criteria.CriteriaEvaluator
+import com.acme.onboarding.application.criteria.DisabledCriteriaEvaluator
 import com.acme.onboarding.domain.compliance.ComplianceEvaluator
 import com.acme.onboarding.domain.requirement.RequirementResolver
 import org.springframework.context.annotation.Bean
@@ -8,6 +11,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.encrypt.BytesEncryptor
 import org.springframework.security.crypto.encrypt.Encryptors
 import org.springframework.security.crypto.password.PasswordEncoder
+import tools.jackson.databind.ObjectMapper
 import java.time.Clock
 
 /**
@@ -33,6 +37,21 @@ class DomainBeans {
 
     @Bean
     fun requirementResolver(): RequirementResolver = RequirementResolver()
+
+    /**
+     * The model that prefills the criteria checklist, or the honest absence of
+     * one.
+     *
+     * Chosen here rather than with a conditional annotation so the fallback is
+     * something a reader can see: a blank key selects [DisabledCriteriaEvaluator],
+     * the UI stops offering the button, and review carries on with a person
+     * ticking each criterion.
+     */
+    @Bean
+    fun criteriaEvaluator(properties: AcmeProperties, objectMapper: ObjectMapper): CriteriaEvaluator =
+        properties.ai.apiKey.takeIf { it.isNotBlank() }
+            ?.let { AnthropicCriteriaEvaluator(it, properties.ai.model, objectMapper) }
+            ?: DisabledCriteriaEvaluator
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()

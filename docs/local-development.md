@@ -92,6 +92,52 @@ cd frontend && npm run generate:api
 It needs the backend running on 8085. A breaking backend change then fails `npm run typecheck` rather than
 failing in a supplier's browser.
 
+## Sending email for real
+
+Out of the box nothing is delivered. The outbox is written, drained and inspectable at `/ops/outbox`, and
+`OutboxOnlyTransport` refuses to mark anything sent that it did not send. Delivery is configuration, not a
+code change — `SmtpMailTransport` registers itself only when a mail host is present:
+
+```bash
+SPRING_MAIL_HOST=smtp.example.com \
+SPRING_MAIL_PORT=587 \
+SPRING_MAIL_USERNAME='apikey' \
+SPRING_MAIL_PASSWORD='…' \
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true \
+SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true \
+MAIL_TRANSPORT=smtp \
+MAIL_FROM=no-reply@acme-msp.com \
+./gradlew bootRun --args='--server.port=8085'
+```
+
+Three things to know before pointing it at a real relay:
+
+- **Any provider works, because they all speak SMTP.** Amazon SES, Postmark, SendGrid, Resend or Acme's own
+  Exchange relay differ only in the four variables above. In production the password comes from Secret
+  Manager and never from a file.
+- **`MAIL_FROM` must be a domain whose SPF and DKIM records name that relay.** Otherwise the invitation that
+  starts onboarding lands in spam, and the failure looks like a supplier who ignored you.
+- **`MAIL_TRANSPORT=smtp` with no host is not fatal, and does not lie.** No transport registers, the drain
+  reports delivery as switched off, and `/ops/outbox` shows a warning naming the misconfiguration instead of
+  a queue of messages that look sent.
+
+To watch messages leave without sending anything to a real person, run a local catcher — Mailpit on
+`localhost:1025` with no auth — and set `SPRING_MAIL_HOST=localhost SPRING_MAIL_PORT=1025 MAIL_TRANSPORT=smtp`.
+
+## Using the model for criteria review
+
+Criteria review works with no model: a reviewer ticks each criterion by hand, which is the fallback the design
+requires anyway. With a key, the model fills the checklist in first and a person still decides:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-… ./gradlew bootRun --args='--server.port=8085'
+```
+
+Without the key, `DisabledCriteriaEvaluator` is the active implementation and the "Ask the model" button is
+not offered. With it, evaluation runs only on Confidential and Internal documents — a W-9 is Restricted and is
+refused by `AnthropicCriteriaEvaluator` before anything is transmitted, which is a code-level gate rather than
+a setting. Every evaluation writes a `DOCUMENT_DISCLOSED` audit event naming the processor and the model.
+
 ## Inspect the database
 
 An Adminer instance is available behind an opt-in profile, so it never starts as part of the normal `up`:

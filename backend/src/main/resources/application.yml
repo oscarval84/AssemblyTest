@@ -27,6 +27,21 @@ spring:
     placeholders:
       appDbRole: ${APP_DB_ROLE:}
 
+  # Mail is deliberately absent from this file. Spring only auto-configures a
+  # JavaMailSender when `spring.mail.host` is set, and `SmtpMailTransport`
+  # registers only when that same property exists — so an unset host means no
+  # transport, the drain reports delivery as switched off, and `/ops/outbox`
+  # says so. Turning delivery on is environment, not a code change:
+  #
+  #   SPRING_MAIL_HOST=smtp.example.com   SPRING_MAIL_PORT=587
+  #   SPRING_MAIL_USERNAME=…              SPRING_MAIL_PASSWORD=…   (Secret Manager)
+  #   SPRING_MAIL_PROPERTIES_MAIL_SMTP_AUTH=true
+  #   SPRING_MAIL_PROPERTIES_MAIL_SMTP_STARTTLS_ENABLE=true
+  #   MAIL_TRANSPORT=smtp                 MAIL_FROM=no-reply@acme-msp.com
+  #
+  # The from address must be a domain whose SPF and DKIM records name the relay,
+  # or onboarding invitations land in spam and the supplier never arrives.
+
   servlet:
     multipart:
       # 10 MB per file. Cloud Run's 32 MB request ceiling is the hard limit; this
@@ -105,17 +120,22 @@ acme:
     field-encryption-key: ${FIELD_ENCRYPTION_KEY:local-development-only}
     field-encryption-salt: ${FIELD_ENCRYPTION_SALT:9a1c4f3b7d2e8056}
 
+  ai:
+    # Criteria prefill. With no key the checklist is filled in by a reviewer,
+    # which is the fallback the design requires either way — see
+    # docs/local-development.md § Using the model for criteria review.
+    #
+    # There is no flag here for which documents may be sent. Classification is
+    # the gate, it is enforced in code (CriteriaPrefillService), and a Restricted
+    # document — a W-9 — is refused whatever this file says. A switch that could
+    # turn that off is a switch somebody eventually turns off.
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: claude-opus-5
+
   demo:
     # Seeds the demo world on an empty database and enables the admin-only reset.
     # Off in any environment holding real supplier data.
     seed-on-startup: ${DEMO_SEED:true}
-
-  ai:
-    # COI extraction only. The W-9 path exists but stays off until Acme signs off
-    # on routing taxpayer identification numbers to an external processor.
-    extraction-enabled: ${AI_EXTRACTION_ENABLED:true}
-    w9-extraction-enabled: ${AI_W9_EXTRACTION_ENABLED:false}
-    model: claude-opus-5
 
 springdoc:
   api-docs:

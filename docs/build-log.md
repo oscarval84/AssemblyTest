@@ -14,11 +14,11 @@ the table in `architecture.md` §10.
 | 2 | Ops pipeline | **Done** | Pipeline grouped by who is blocking, supplier record with compliance per program, the activity timeline, and the auditor export at `/ops/audit` |
 | 2b | Administration | **Done** | See below |
 | 3 | Documents & review | **Done** | Review queue ordered by wait time, approve/reject with a reason and note, segregation of duties enforced |
-| 4 | Notifications | **Partly** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. No real transport yet — the `MailTransport` port has one implementation and it delivers nothing, on purpose |
+| 4 | Notifications | **Done** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. `SmtpMailTransport` delivers wherever a mail host is configured; with none, delivery is off and the screen says so |
 | 5 | VMS integration | **Done** | `VmsConnector` port with a simulated adapter, idempotent pull that starts onboarding with no ops action, transactional integration outbox with backoff and dead-lettering, conflict flagging, and `/ops/integrations` |
 | 6 | Compliance engine | **Done** | Nightly sweep reminds at 30 days, 7 days and the morning after; reopens onboarding on expiry; records every transition. Ops sees the same list at `/ops/expirations` |
-| 7 | AI review | **Partly** | Criteria authored, versioned and checked at review time, with one-click rejection in Acme's own words. The model prefill is a port with no implementation — see below |
-| 8 | Deliverables | Not started | Decision memo and demo script |
+| 7 | AI review | **Partly** | Criteria authored, versioned and checked at review time, with one-click rejection in Acme's own words, and model prefill behind an API key with the classification gate in code. COI field extraction is not built |
+| 8 | Deliverables | **Done** | [decision-memo.md](decision-memo.md), [demo-script.md](demo-script.md), root README, seeded demo world with an admin-only reset |
 
 ## Workstream 2b — administration
 
@@ -88,18 +88,33 @@ liability aggregate shows USD 1,000,000; this program requires USD 2,000,000"* r
 incorrect information"*. That is the difference between one resubmission and three, and three rounds of email
 is where the 3–6 week cycle time actually goes.
 
-**What is not built: the model prefill.** The port and the storage are there — every verdict records whether a
-model or a person decided it, along with the model name and confidence — but there is no Anthropic
-implementation and no API key configured, so today a human ticks each criterion. That is the honest state, and
-it is also the fallback the design requires: a `FAIL` never auto-rejects and a `PASS` never auto-approves, so
-the model only ever saves reading time. Adding it is one adapter plus a key, and the classification gate
-(Confidential and Internal only, never a W-9) has to be enforced in that adapter before it sends anything.
+**The model prefill is built, behind an API key.** `AnthropicCriteriaEvaluator` sends the document and Acme's
+criteria to Claude with structured outputs, and the checklist comes back as typed verdicts — each with the span
+it relied on and a confidence — stored with `source = MODEL` beside whatever the reviewer later decides. With no
+key, `DisabledCriteriaEvaluator` is the active implementation, the button is not offered, and a person ticks
+each criterion; that is the fallback the design requires anyway, because a `FAIL` never auto-rejects and a
+`PASS` never auto-approves.
+
+**The classification gate is the part worth reviewing.** Evaluation transmits a document to a third party, so it
+runs on Confidential and Internal documents only. A W-9 is Restricted and is refused in `CriteriaPrefillService`
+— in code, not behind a setting, because a setting is something somebody eventually turns off. The checklist
+reports `modelAvailable = false` for a Restricted document even where a key is configured, so the button never
+appears in the first place. `CriteriaPrefillTest` asserts both halves: the refusal, and that nothing reached the
+model before it.
+
+**Disclosure is recorded before the call, not after.** `DOCUMENT_DISCLOSED` commits in its own transaction
+naming the processor, the model and the document's classification; the verdicts commit in a second one. A call
+that times out therefore still leaves the record that the document left the building, which is the ordering an
+auditor cares about and the opposite of what one transaction around the whole thing would give.
 
 ## Workstream 2 — the auditor export
 
 Dana asked for this by name: *"a history I can hand to an auditor."* The timeline on a supplier's record
 answered half of it. This is the other half — the same events, filtered by supplier, program and date range,
-as a CSV at `/ops/audit`, plus a link from each supplier's record that arrives pre-filtered to that company.
+as a CSV *or a PDF* at `/ops/audit`, plus a link from each supplier's record that arrives pre-filtered to that
+company. Two formats because the recipients differ: the CSV is filtered and pivoted by whoever analyses it, the
+PDF is what gets attached to an audit response. Same query, same events; the PDF caps far lower on purpose,
+because past a couple of thousand events it is hundreds of pages nobody reads and the CSV is the honest answer.
 
 **It is an audit artifact, so it is built like one.**
 
@@ -138,19 +153,33 @@ function the sweep itself uses.
 have passed the entire suite. There are now four, including the careful attack — rewriting an event *and*
 recomputing its hash, which moves the break to its successor rather than hiding it.
 
+## Resolving `rejection_reason` against authored criteria
+
+The seeded catalog was built before the client answered the question it was guessing at, and the product then
+had two vocabularies for the same act. The UI papered over it: rejecting from a failed criterion sent a fixed
+catalog code, so a supplier whose certificate was unsigned was told *"coverage limits below the program
+minimum"*.
+
+A rejection is now grounded in exactly one thing (V8): an authored criterion — the primary path, quoted back to
+the supplier verbatim — or a catalog reason, for what criteria cannot express, which is real and narrow: an
+illegible scan, the wrong document entirely. The schema enforces the exclusivity and still refuses a rejection
+with neither. One `rejection_label` column resolves to the criterion's own text or the catalog label, so every
+screen and every email reads the same source and neither path can drift into describing a rejection differently.
+
 ## Known gaps, all deliberate
 
 - **No malware scanning on upload.** Documented in `architecture.md` §7 as an accepted v1 gap, not an oversight.
-- **Nothing is actually delivered.** The drain runs and reports what it would send; `OutboxOnlyTransport`
-  refuses to deliver rather than marking messages `SENT` it never sent, because a log that lies about delivery
-  is worse than one that admits it is switched off. A real transport is a second implementation of
-  `MailTransport` and a credential.
+- **Nothing is delivered here, but the transport exists.** `SmtpMailTransport` registers itself only when a
+  mail host is configured; with none, `OutboxOnlyTransport` refuses to deliver rather than marking messages
+  `SENT` it never sent, and `/ops/outbox` reports delivery as switched off. Turning it on is four environment
+  variables and a credential — see `local-development.md` § Sending email for real. A configured transport with
+  no host is not fatal either: the screen warns that messages are queueing behind a misconfiguration.
 - **The scheduler is not wired.** `/internal/jobs/compliance-sweep` and `/internal/jobs/outbox-drain` exist and
   are authenticated with a shared secret; creating the three Cloud Scheduler jobs is deploy configuration we
   cannot do without Acme's GCP project.
-- **`rejection_reason` still models the seeded catalog.** The client's second answer replaced it as the primary
-  path with authored, versioned acceptance criteria (Workstream 7); the catalog remains the always-available
-  baseline. Resolve this before building any UI on top of rejection reasons.
+- **COI field extraction is not built.** The stretch goal, and the one whose absence costs least: expiry dates
+  are typed at upload and validated, so the compliance engine is already correct without it. It is a second
+  implementation behind the same port the criteria prefill uses, with the same classification gate.
 - **Deploy pipeline is not built.** Jib, Firebase Hosting configuration and the GitHub Actions workflow need
   Acme's GCP project and Workload Identity Federation identifiers, which we do not have.
 
