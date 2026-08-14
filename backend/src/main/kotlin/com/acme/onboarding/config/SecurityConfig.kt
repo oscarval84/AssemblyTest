@@ -52,6 +52,9 @@ class SecurityConfig {
                     // against BREACH but requires the client to unmask, which is
                     // a subtlety worth avoiding for the protection it buys here.
                     .csrfTokenRequestHandler(CsrfTokenRequestAttributeHandler())
+                    // A scheduler has no cookie jar, so there is no cross-site
+                    // request to forge; the shared secret is the control there.
+                    .ignoringRequestMatchers("/internal/jobs/**")
             }
             .addFilterAfter(CsrfCookieFilter(), CsrfFilter::class.java)
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
@@ -69,6 +72,9 @@ class SecurityConfig {
                         "/api/demo/accounts",
                     ).permitAll()
                     .requestMatchers("/api/openapi.json", "/api/docs/**", "/swagger-ui/**").permitAll()
+                    // Scheduled jobs carry a shared secret the controller checks
+                    // rather than a session; see InternalJobsController.
+                    .requestMatchers("/internal/jobs/**").permitAll()
                     .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
                     .anyRequest().authenticated()
             }

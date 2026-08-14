@@ -125,5 +125,13 @@ object AuditAction {
     /** Access is audited, not only change: "who read this W-9, and when". */
     const val DOCUMENT_ACCESSED = "DOCUMENT_ACCESSED"
 
+    /**
+     * Compliance status is computed, so these record the *transition* rather
+     * than the state — the moment a certificate crossed a line, and the fact
+     * that the supplier was told about it.
+     */
+    const val DOCUMENT_EXPIRING_SOON = "DOCUMENT_EXPIRING_SOON"
+    const val DOCUMENT_EXPIRED = "DOCUMENT_EXPIRED"
+
     const val DEMO_DATA_RESET = "DEMO_DATA_RESET"
 }

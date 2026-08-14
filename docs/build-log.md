@@ -14,9 +14,9 @@ the table in `architecture.md` §10.
 | 2 | Ops pipeline | **Partly** | Pipeline grouped by who is blocking, supplier record with compliance per program and the activity timeline. The auditor export is not built |
 | 2b | Administration | **Done** | See below |
 | 3 | Documents & review | **Done** | Review queue ordered by wait time, approve/reject with a reason and note, segregation of duties enforced |
-| 4 | Notifications | **Partly** | Outbox written transactionally and inspectable at `/ops/outbox`. No real transport and no scheduled drain |
+| 4 | Notifications | **Partly** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. No real transport yet — the `MailTransport` port has one implementation and it delivers nothing, on purpose |
 | 5 | VMS integration | Not started | |
-| 6 | Compliance engine | **Partly** | Expiry dates, computed compliance and the warning band all work. No scheduled sweep and no reminder emails |
+| 6 | Compliance engine | **Done** | Nightly sweep reminds at 30 days, 7 days and the morning after; reopens onboarding on expiry; records every transition. Ops sees the same list at `/ops/expirations` |
 | 7 | AI review | Not started | |
 | 8 | Deliverables | Not started | Decision memo and demo script |
 
@@ -58,15 +58,40 @@ token.
 ## Known gaps, all deliberate
 
 - **No malware scanning on upload.** Documented in `architecture.md` §7 as an accepted v1 gap, not an oversight.
-- **The outbox is never drained.** Messages are written and shown; delivery needs a transport and a scheduled
-  job (Workstream 4).
-- **Compliance is computed but never swept.** Expiry drives status correctly on every read; nobody is notified
-  before it happens (Workstream 6).
+- **Nothing is actually delivered.** The drain runs and reports what it would send; `OutboxOnlyTransport`
+  refuses to deliver rather than marking messages `SENT` it never sent, because a log that lies about delivery
+  is worse than one that admits it is switched off. A real transport is a second implementation of
+  `MailTransport` and a credential.
+- **The scheduler is not wired.** `/internal/jobs/compliance-sweep` and `/internal/jobs/outbox-drain` exist and
+  are authenticated with a shared secret; creating the three Cloud Scheduler jobs is deploy configuration we
+  cannot do without Acme's GCP project.
 - **`rejection_reason` still models the seeded catalog.** The client's second answer replaced it as the primary
   path with authored, versioned acceptance criteria (Workstream 7); the catalog remains the always-available
   baseline. Resolve this before building any UI on top of rejection reasons.
 - **Deploy pipeline is not built.** Jib, Firebase Hosting configuration and the GitHub Actions workflow need
   Acme's GCP project and Workload Identity Federation identifiers, which we do not have.
+
+## Workstream 6 — the compliance engine
+
+The sweep does **not** keep a status column truthful — compliance is computed from the current date on every
+read, so it is already correct at midnight with nothing running. The job exists for the two things a computed
+value cannot do: tell somebody, and record that the transition happened.
+
+Reminders fire at 30 days, 7 days, the day of expiry, and the day after. Each is claimed once per document
+version through a primary key on `expiry_reminder`, so idempotency is a database guarantee rather than a
+convention — the job runs daily and a certificate sits in the warning band for a month, which without this
+would be thirty emails and a supplier who filters Acme out.
+
+An expired document reopens document collection and writes a `DOCUMENT_EXPIRED` event to the supplier's chain.
+It flags rather than blocks: whether an expired certificate stops a placement is the VMS's decision, and that
+question is still open with the client.
+
+## Running the scheduled jobs by hand
+
+```bash
+curl -X POST -H "X-Job-Token: local-development-job-token" \
+  http://localhost:8085/internal/jobs/compliance-sweep
+```
 
 ## Running it
 

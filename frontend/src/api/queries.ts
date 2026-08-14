@@ -9,6 +9,7 @@ import {
   type ChecklistView,
   type DemoInfo,
   type InvitationPreview,
+  type ExpiringDocument,
   type OutboxView,
   type ProfileBody,
   type ProgramRecord,
@@ -44,6 +45,7 @@ export const keys = {
   rejectionReasons: ['rejection-reasons'] as const,
   outbox: ['outbox'] as const,
   staff: ['staff-users'] as const,
+  expirations: ['expirations'] as const,
   accessHistory: (id: string) => ['access-history', id] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
@@ -336,6 +338,14 @@ export function useReviewDecision(supplierId: string) {
       void queryClient.invalidateQueries({ queryKey: keys.reviewQueue })
       void queryClient.invalidateQueries({ queryKey: keys.outbox })
     },
+  })
+}
+
+export function useExpirations(withinDays = 60): UseQueryResult<ExpiringDocument[]> {
+  return useQuery({
+    queryKey: [...keys.expirations, withinDays],
+    queryFn: async () =>
+      unwrap(await api.GET('/api/compliance/expirations', { params: { query: { withinDays } } })),
   })
 }
 

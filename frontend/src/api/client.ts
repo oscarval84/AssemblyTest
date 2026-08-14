@@ -32,6 +32,7 @@ export type RejectionReason = Schemas['RejectionReasonRecord']
 export type OutboxView = Schemas['OutboxView']
 export type OutboxEntry = Schemas['OutboxEntry']
 export type StaffUser = Schemas['StaffUserView']
+export type ExpiringDocument = Schemas['ExpiringDocument']
 
 export type RequirementState = ChecklistEntry['state']
 export type Role = Session['role']

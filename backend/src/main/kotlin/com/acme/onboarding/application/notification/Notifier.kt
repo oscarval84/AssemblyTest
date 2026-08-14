@@ -167,6 +167,64 @@ class Notifier(
         """.trimIndent(),
     )
 
+    /**
+     * The reminder that is the whole point of tracking expiry dates.
+     *
+     * Twice, a supplier worked on an expired certificate because nobody noticed.
+     * The copy changes with urgency rather than repeating itself: a note at 30
+     * days reads differently from the message sent the morning after a lapse,
+     * and a supplier who gets the same email four times stops reading them.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun expiryReminder(
+        recipientEmail: String,
+        recipientName: String?,
+        supplierId: UUID,
+        companyName: String,
+        documentName: String,
+        expiresOn: java.time.LocalDate,
+        daysRemaining: Long,
+    ): UUID {
+        val subject = when {
+            daysRemaining < 0 -> "Your $documentName has expired"
+            daysRemaining == 0L -> "Your $documentName expires today"
+            daysRemaining <= 7 -> "$documentName expires in $daysRemaining days"
+            else -> "Time to renew your $documentName"
+        }
+
+        val opening = when {
+            daysRemaining < 0 ->
+                "The $documentName we hold for $companyName expired on $expiresOn, so $companyName is " +
+                    "showing as non-compliant to the programs it is enrolled in."
+
+            daysRemaining == 0L ->
+                "The $documentName we hold for $companyName expires today, $expiresOn."
+
+            else ->
+                "The $documentName we hold for $companyName expires on $expiresOn, in $daysRemaining days."
+        }
+
+        return enqueue(
+            template = "EXPIRY_REMINDER",
+            recipientEmail = recipientEmail,
+            recipientName = recipientName,
+            supplierId = supplierId,
+            subject = subject,
+            body = """
+            Hello${recipientName?.let { " $it" } ?: ""},
+
+            $opening
+
+            Upload the replacement here — it takes a minute, and you do not need to send
+            anything else:
+            ${link("portal", "")}
+
+            Nothing else about your onboarding is affected, and your other documents stay
+            exactly as they are.
+            """.trimIndent(),
+        )
+    }
+
     private fun enqueue(
         template: String,
         recipientEmail: String,

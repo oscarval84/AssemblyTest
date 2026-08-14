@@ -2,7 +2,9 @@ package com.acme.onboarding.adapter.web
 
 import com.acme.onboarding.adapter.persistence.ActivityRow
 import com.acme.onboarding.adapter.persistence.CatalogRepository
+import com.acme.onboarding.adapter.persistence.ExpiringDocument
 import com.acme.onboarding.adapter.persistence.ProgramRecord
+import com.acme.onboarding.application.compliance.ComplianceSweepService
 import com.acme.onboarding.application.document.DocumentService
 import com.acme.onboarding.application.document.UploadRequest
 import com.acme.onboarding.application.supplier.ChecklistView
@@ -189,6 +191,18 @@ class SupplierController(
         )
         return mapOf("submissionId" to submissionId)
     }
+}
+
+@RestController
+@RequestMapping("/api/compliance")
+@Tag(name = "Compliance")
+class ComplianceController(private val sweep: ComplianceSweepService) {
+
+    @GetMapping("/expirations")
+    @Operation(summary = "Documents that expire soon or already have, soonest first")
+    fun expirations(
+        @RequestParam(required = false, defaultValue = "60") withinDays: Long,
+    ): List<ExpiringDocument> = sweep.upcomingExpirations(CurrentActor.require(), withinDays)
 }
 
 @RestController
