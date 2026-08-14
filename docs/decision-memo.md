@@ -33,12 +33,18 @@ database says compliant and the calendar disagrees.
 That matters because your clients audit you, and "we restricted access" is the weaker answer.
 Document *reads* are audited too; no bucket permission answers "who opened this banking form".
 
-**You write the acceptance criteria, not me.** You asked for reference documents plus criteria you
+**The acceptance criteria are yours, not mine.** You asked for reference documents plus criteria you
 input, which is a better answer than the three rejection reasons I asked for: a seeded catalog
-encodes what I guessed on the day I guessed it, authored criteria encode what you require, per
-program, with no deploy. The payoff is the rejection — *"the aggregate shows USD 1,000,000; this
+encodes what I guessed on the day I guessed it, criteria encode what you actually require, per
+program and versioned. The payoff is the rejection — *"the aggregate shows USD 1,000,000; this
 program requires USD 2,000,000"* instead of *"rejected — incorrect information"*. Three rounds of
 email is where the cycle time actually goes.
+
+**Half of that shipped, and I want to be exact about which half.** Criteria are stored, versioned,
+checked at review and quoted into rejections — all of that works. What has no screen yet is you
+*entering* them: today they load through the API, so changing a criterion still comes back to me.
+That is the gap between what you asked for and what runs, it is first on the v2 list, and it is
+frontend work against an endpoint that already exists.
 
 **The taxpayer ID never leaves; the W-9 leaves only if you say so.** The number is encrypted, masked
 to four digits, never sent anywhere — enforced in code, with no setting, because there is nowhere in
@@ -91,16 +97,19 @@ feature is the allocation decision I would defend most firmly.
 
 ## What v2 looks like
 
-1. **The real VMS connector.** Everything except the vendor adapter is built and exercised —
+1. **The screen where you write the criteria**, and one for programs and their document
+   requirements alongside it. This is the half of your answer 2 that did not ship, the storage and
+   versioning behind it are already done and tested, and it is the shortest item on this list.
+2. **The real VMS connector.** Everything except the vendor adapter is built and exercised —
    idempotent pull, retry with backoff, dead-lettering, conflict flagging. Give me credentials and a
    field map.
-2. **Reporting for your QBR.** Cycle time and funnel by program and stage — a reading of the audit
+3. **Reporting for your QBR.** Cycle time and funnel by program and stage — a reading of the audit
    log rather than new instrumentation, because every event is already recorded.
-3. **Per-program document decisions**, if you need one certificate accepted for Meridian and
+4. **Per-program document decisions**, if you need one certificate accepted for Meridian and
    rejected for Northstar at once. Today it carries one decision. See question 3.
-4. **Hardening**: split the database role that migrates from the one that serves, add malware
+5. **Hardening**: split the database role that migrates from the one that serves, add malware
    scanning ahead of storage, put it through a penetration test.
-5. **SSO through Entra ID**, which you said comes later. The session layer is where it plugs in.
+6. **SSO through Entra ID**, which you said comes later. The session layer is where it plugs in.
 
 ## What I need from you
 

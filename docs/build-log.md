@@ -221,6 +221,13 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **Criteria have no authoring screen, and programs are read-only.** The client's answer 2 asked for
+  reference documents plus criteria *Acme inputs*. What shipped stores, versions, evaluates and
+  rejects against them, and `PUT /api/requirements/{id}/criteria` works — but no screen calls it and
+  the ops console has no programs route, so entering a criterion means calling the API. Three
+  documents described the authoring as though it had shipped, including a line the demo script put in
+  the presenter's mouth on camera; all three now say what is actually true. Building the screen was
+  weighed against a budget already at its cap and deliberately deferred rather than half-started.
 - **The demo reset does not work on the deployed instance, and that is the control working.** It clears
   the world with `TRUNCATE ... CASCADE`, which reaches `activity_event` through its actor foreign key,
   and `V2` limits the application's role there to `SELECT` and `INSERT`. It used to surface as a 500;

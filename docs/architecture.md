@@ -556,7 +556,9 @@ Every transmission of a Restricted document writes a disclosure event naming the
 
 Asked which three or four reasons his team rejects documents for, so they could become one-click buttons, the client answered a different and better question: **give Acme a reference document and acceptance criteria to input, and check submissions against those.**
 
-That moves the knowledge to the right place. A seeded catalog encodes what we guessed Acme rejects for, frozen on the day we guessed it. Authored criteria encode what Acme actually requires, per program, maintained by the people who own the requirement, with no deploy. Marcus adds a criterion the first time a supplier gets something wrong, and every submission after that is checked against it.
+That moves the knowledge to the right place. A seeded catalog encodes what we guessed Acme rejects for, frozen on the day we guessed it. Criteria encode what Acme actually requires, per program and versioned, so the intended end state is that Marcus adds one the first time a supplier gets something wrong and every submission after that is checked against it.
+
+**What shipped is that model minus its authoring screen, and the distinction matters.** Storage, versioning, evaluation, the checklist at review and one-click rejection are all built and tested. `PUT /api/requirements/{id}/criteria` replaces a requirement's list and returns the new version. No screen calls it — the ops console has no route for programs or requirements at all, and `/api/programs` is read-only. So criteria are authored through the API today, which means "maintained by the people who own the requirement, with no deploy" describes the design rather than the build. It is the first item in §12's v2 list, and it is frontend work against an endpoint that already exists.
 
 **Authoring.** Each program requirement can carry two things:
 

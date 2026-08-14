@@ -45,9 +45,12 @@ Sign in as **marcus.lee@acme-msp.example**.
 
 Open the pending **Certificate of Insurance** for Beacon Technical Services.
 
-- The acceptance criteria sit beside the document. **Acme wrote these**, per program, versioned, with
-  no deploy — Marcus adds one the first time a supplier gets something wrong, and every submission
-  after that is checked against it.
+- The acceptance criteria sit beside the document — **this program's criteria**, versioned, so every
+  submission is checked against the same list rather than against what a reviewer remembers.
+
+  *Say this as it is: the criteria are loaded through the API today, and the screen where Marcus
+  maintains them himself is the first thing in v2. Do not claim he can add one — he cannot yet, and
+  it is the kind of thing a client discovers on day two.*
 - Mark one criterion **Fail** and add what the document showed
   (`General liability aggregate: USD 1,000,000`).
 - Click **Reject using this**.
