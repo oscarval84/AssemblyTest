@@ -8,18 +8,19 @@ import com.acme.onboarding.application.compliance.ComplianceSweepService
 import com.acme.onboarding.application.document.DocumentReviewService
 import com.acme.onboarding.application.document.DocumentService
 import com.acme.onboarding.application.document.UploadRequest
-import com.acme.onboarding.application.extraction.CoiExtractionService
-import com.acme.onboarding.application.extraction.CoiExtractor
+import com.acme.onboarding.application.extraction.DocumentExtractionService
 import com.acme.onboarding.application.extraction.CoiFields
+import com.acme.onboarding.application.extraction.DocumentExtractor
 import com.acme.onboarding.application.extraction.ExtractionOutcome
 import com.acme.onboarding.application.extraction.ExtractionRequest
+import com.acme.onboarding.application.extraction.W9Fields
 import com.acme.onboarding.application.supplier.NewSupplierRequest
 import com.acme.onboarding.application.supplier.ProfileUpdateRequest
 import com.acme.onboarding.application.supplier.SupplierService
 import com.acme.onboarding.application.support.InvalidRequestException
 import com.acme.onboarding.application.support.hash
 import com.acme.onboarding.domain.compliance.ComplianceEvaluator
-import com.acme.onboarding.domain.extraction.CertificateFlag
+import com.acme.onboarding.domain.extraction.ExtractionFlag
 import com.acme.onboarding.domain.user.AccessDeniedException
 import com.acme.onboarding.domain.user.Actor
 import com.acme.onboarding.domain.user.Role
@@ -52,10 +53,12 @@ import kotlin.test.assertTrue
  * against the document, and an expiry date wrong by two months is the shape of
  * the failure that let a supplier work on a lapsed certificate twice.
  *
- * So these tests are about three things: that a Restricted document never
- * reaches the model, that a disagreement is surfaced rather than silently
- * resolved, and that correcting it is an act by a person which the compliance
- * engine then acts on.
+ * So these tests are about three things: that a disagreement is surfaced rather
+ * than silently resolved, that correcting it is an act by a person which the
+ * compliance engine then acts on, and that a W-9 goes nowhere near the model
+ * while Acme has not turned it on. This class is the default posture — the
+ * switch is off, because that is what an unconfigured environment does.
+ * [W9ExtractionTest] is the same system with Acme's decision made.
  */
 @Testcontainers
 @SpringBootTest(
@@ -64,13 +67,14 @@ import kotlin.test.assertTrue
         "spring.main.allow-bean-definition-overriding=true",
     ],
 )
-@Import(CoiExtractionTest.StandInModel::class)
-class CoiExtractionTest {
+@Import(DocumentExtractionTest.StandInModel::class)
+class DocumentExtractionTest {
 
     /** A model that never sees a network, and remembers what it was shown. */
-    class RecordingExtractor : CoiExtractor {
+    class RecordingExtractor : DocumentExtractor {
         val seen = mutableListOf<ExtractionRequest>()
         var fields = CoiFields()
+        var taxForm = W9Fields()
         var confidence: Double? = 0.88
 
         override val available = true
@@ -78,14 +82,18 @@ class CoiExtractionTest {
 
         override fun extract(request: ExtractionRequest): ExtractionOutcome {
             seen += request
-            return ExtractionOutcome(fields, confidence)
+            return if (request.documentTypeCode == "W9") {
+                ExtractionOutcome(w9 = taxForm, confidence = confidence)
+            } else {
+                ExtractionOutcome(coi = fields, confidence = confidence)
+            }
         }
     }
 
     @TestConfiguration
     class StandInModel {
         @Bean
-        fun coiExtractor(): CoiExtractor = RecordingExtractor()
+        fun documentExtractor(): DocumentExtractor = RecordingExtractor()
     }
 
     companion object {
@@ -98,8 +106,8 @@ class CoiExtractionTest {
         private val PDF = "%PDF-1.4\nread by a test\n%%EOF".toByteArray(Charsets.US_ASCII)
     }
 
-    @Autowired private lateinit var extraction: CoiExtractionService
-    @Autowired private lateinit var extractor: CoiExtractor
+    @Autowired private lateinit var extraction: DocumentExtractionService
+    @Autowired private lateinit var extractor: DocumentExtractor
     @Autowired private lateinit var suppliers: SupplierService
     @Autowired private lateinit var documents: DocumentService
     @Autowired private lateinit var submissions: SubmissionRepository
@@ -115,7 +123,7 @@ class CoiExtractionTest {
     private val model get() = extractor as RecordingExtractor
 
     @Test
-    fun `a W-9 is never sent to the model, and the button is never offered for one`() {
+    fun `a W-9 goes nowhere until Acme turns it on, and the button is not offered meanwhile`() {
         val ops = staffActor(Role.OPS)
         val program = programRequiring("W9", "CERTIFICATE_OF_INSURANCE")
         val world = supplierWith(ops, program, "W9")
@@ -123,8 +131,13 @@ class CoiExtractionTest {
 
         val refusal = assertFailsWith<AccessDeniedException> { extraction.extract(ops, world.submissionId) }
 
-        assertTrue(refusal.message!!.contains("Restricted"), refusal.message!!)
-        assertEquals(before, model.seen.size, "a Restricted document must not reach the model at all")
+        // The refusal has to say whose decision it is. An ops lead who reads
+        // "not supported" files a bug; one who reads this asks their compliance
+        // function, which is the conversation that should happen.
+        assertTrue(refusal.message!!.contains("taxpayer identification number"), refusal.message!!)
+        assertTrue(refusal.message!!.contains("Acme's decision"), refusal.message!!)
+
+        assertEquals(before, model.seen.size, "the document must not reach the model at all")
         assertFalse(extraction.current(ops, world.submissionId).available)
     }
 
@@ -141,14 +154,14 @@ class CoiExtractionTest {
         val view = extraction.extract(ops, world.submissionId)
 
         assertTrue(view.expiryDisagrees)
-        assertEquals(onTheDocument, view.fields?.expiresOn)
+        assertEquals(onTheDocument, view.coi?.expiresOn)
         assertEquals(typed, view.recordedExpiry)
 
         // Read, not written. The compliance engine is still running on the
         // supplier's date until a person says otherwise.
         assertEquals(typed, submissions.findById(world.submissionId)!!.expiresOn)
 
-        val disagreement = view.findings.single { it.flag == CertificateFlag.EXPIRY_MISMATCH }
+        val disagreement = view.findings.single { it.flag == ExtractionFlag.EXPIRY_MISMATCH }
         assertTrue(disagreement.detail.contains(onTheDocument.toString()), disagreement.detail)
         assertTrue(disagreement.detail.contains(typed.toString()), disagreement.detail)
 
@@ -182,9 +195,11 @@ class CoiExtractionTest {
         // Both values, because "why did this supplier's expiry move" must have
         // an answer that is not "the model".
         val event = suppliers.activity(ops, world.supplierId).first { it.action == "DOCUMENT_EXPIRY_CORRECTED" }
+        val before = event.beforeState!!
+        val after = event.afterState!!
         assertEquals(ops.label, event.actorLabel)
-        assertTrue(event.beforeState!!.contains(typed.toString()), event.beforeState!!)
-        assertTrue(event.afterState!!.contains(actual.toString()), event.afterState!!)
+        assertTrue(before.contains(typed.toString()), before)
+        assertTrue(after.contains(actual.toString()), after)
 
         // And the correction reaches the engine. The sweep tracks approved
         // documents, because an unreviewed one is not yet an obligation — so
@@ -210,13 +225,13 @@ class CoiExtractionTest {
         model.confidence = 0.2
         val view = extraction.extract(ops, world.submissionId)
 
-        assertNull(view.fields?.expiresOn)
+        assertNull(view.coi?.expiresOn)
         assertFalse(view.expiryDisagrees)
         assertFailsWith<InvalidRequestException> { extraction.applyExtractedExpiry(ops, world.submissionId) }
     }
 
     @Test
-    fun `extraction is for certificates, and other documents are read against their criteria`() {
+    fun `extraction is for certificates and W-9s, other documents go to their criteria`() {
         val ops = staffActor(Role.OPS)
         val program = programRequiring("SUPPLIER_AGREEMENT", "CERTIFICATE_OF_INSURANCE")
         val world = supplierWith(ops, program, "SUPPLIER_AGREEMENT")

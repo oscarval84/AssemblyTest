@@ -96,10 +96,11 @@ each criterion; that is the fallback the design requires anyway, because a `FAIL
 `PASS` never auto-approves.
 
 **The classification gate is the part worth reviewing.** Evaluation transmits a document to a third party, so it
-runs on Confidential and Internal documents only. A W-9 is Restricted and is refused in `CriteriaPrefillService`
-— in code, not behind a setting, because a setting is something somebody eventually turns off. The checklist
-reports `modelAvailable = false` for a Restricted document even where a key is configured, so the button never
-appears in the first place. `CriteriaPrefillTest` asserts both halves: the refusal, and that nothing reached the
+runs on Confidential and Internal documents only. A W-9 is Restricted and is refused in `CriteriaPrefillService`,
+in code and with no setting attached — nobody writes acceptance criteria for a W-9, so there is nothing here to
+weigh against the exposure. (Field *extraction* is the case where there was something to weigh, and it got a
+switch; see below.) The checklist reports `modelAvailable = false` for a Restricted document even where a key is
+configured, so the button never appears in the first place. `CriteriaPrefillTest` asserts both halves: the refusal, and that nothing reached the
 model before it.
 
 **Disclosure is recorded before the call, not after.** `DOCUMENT_DISCLOSED` commits in its own transaction
@@ -166,7 +167,7 @@ illegible scan, the wrong document entirely. The schema enforces the exclusivity
 with neither. One `rejection_label` column resolves to the criterion's own text or the catalog label, so every
 screen and every email reads the same source and neither path can drift into describing a rejection differently.
 
-## Workstream 7 — COI field extraction
+## Workstream 7 — field extraction
 
 The stretch goal, built last because the product is correct without it — and that is exactly what shaped it.
 The supplier types the expiry date at upload, it is required and validated, and the whole compliance engine
@@ -192,8 +193,31 @@ a gap:
   Partners, LLC" are one company, and an insurer writes whichever is on the policy. Flagging that pair would
   train a reviewer to click past every name mismatch — including the one that mattered.
 
-Same classification gate as criteria review, same ordering: the disclosure event commits before the document
-is transmitted, and `DOCUMENT_EXPIRY_CORRECTED` carries both dates because compliance runs on that column.
+Same ordering as criteria review: the disclosure event commits before the document is transmitted, and
+`DOCUMENT_EXPIRY_CORRECTED` carries both dates because compliance runs on that column.
+
+**The W-9, and a position that was wrong.** This shipped reading certificates only, and refused a W-9 in code
+on the grounds that a Restricted document should never reach a processor. The brief names the W-9 as its
+example of AI in the product, and `CLAUDE.md` had always described that path as *disabled by default* — which
+presupposes a switch. More to the point, the decision memo tells Acme this call is theirs to make with their
+compliance function, and a call they cannot act on without asking us for a release is not theirs.
+
+So the W-9 is built, off by default, behind `acme.ai.w9-extraction-enabled`. What that separation buys is
+worth stating: **Acme decides whether the document is sent; we decide what may be kept.** The taxpayer
+identification number is not extracted at all — no field in the JSON schema, none in `W9Fields`, none in the
+parser, and the system prompt says so too. Three locks, and the absent field is the one that holds, because no
+value of the flag creates somewhere to put the number. `W9ExtractionTest` runs the same context with the switch
+on and asserts the stored row contains neither the supplier's tax ID nor any field that could carry one.
+
+`TaxFormFindings` is the domain half. It flags a form filed under a different company — the failure that ends
+with a 1099 going to the owner's other entity — and an entity type contradicting the profile. That comparison
+maps each side to the *set* of kinds its wording admits rather than comparing strings, because the W-9's first
+checkbox reads "Individual/sole proprietor or single-member LLC" and a profile that says "LLC" is not
+disagreeing with it.
+
+Every transmission of a Restricted document writes a `DOCUMENT_DISCLOSED` event naming the setting that
+permitted it, so the log shows when Acme's decision took effect rather than requiring it be correlated with a
+deploy.
 
 ## Known gaps, all deliberate
 
@@ -206,6 +230,8 @@ is transmitted, and `DOCUMENT_EXPIRY_CORRECTED` carries both dates because compl
 - **The scheduler is not wired.** `/internal/jobs/compliance-sweep` and `/internal/jobs/outbox-drain` exist and
   are authenticated with a shared secret; creating the three Cloud Scheduler jobs is deploy configuration we
   cannot do without Acme's GCP project.
+- **W-9 extraction is off in this build**, and needs `AI_W9_EXTRACTION_ENABLED=true` plus the API key. That
+  is Acme's decision to make, not a credential we are missing — see the memo, "What we need from you", item 3.
 - **Nothing reads a certificate on upload.** Extraction is a deliberate act by a reviewer rather than something
   that happens when a supplier submits. Running it automatically is a scheduler and a queue away, and it would
   transmit every certificate to a processor whether or not anyone was going to look at the result — which is a

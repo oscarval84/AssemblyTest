@@ -31,7 +31,7 @@ class CertificateFindingsTest {
             today = TODAY,
         )
 
-        val mismatch = findings.single { it.flag == CertificateFlag.EXPIRY_MISMATCH }
+        val mismatch = findings.single { it.flag == ExtractionFlag.EXPIRY_MISMATCH }
 
         // Both dates, because the reviewer has to decide which is right — and
         // the compliance engine is running on the one that was typed.
@@ -62,7 +62,7 @@ class CertificateFindingsTest {
             today = TODAY,
         )
 
-        val coverage = findings.single { it.flag == CertificateFlag.COVERAGE_BELOW_MINIMUM }
+        val coverage = findings.single { it.flag == ExtractionFlag.COVERAGE_BELOW_MINIMUM }
 
         // The wording a supplier can act on: what the document shows, and what
         // the program requires. Not "coverage appears insufficient".
@@ -79,7 +79,7 @@ class CertificateFindingsTest {
             supplierLegalName = "Northwind Staffing Partners",
             today = TODAY,
         )
-        assertTrue(expired.any { it.flag == CertificateFlag.EXPIRED_ON_ARRIVAL })
+        assertTrue(expired.any { it.flag == ExtractionFlag.EXPIRED_ON_ARRIVAL })
 
         val soon = CertificateFindings.evaluate(
             fields = certificate(expiresOn = TODAY.plusDays(3)),
@@ -88,7 +88,7 @@ class CertificateFindingsTest {
             supplierLegalName = "Northwind Staffing Partners",
             today = TODAY,
         )
-        val finding = soon.single { it.flag == CertificateFlag.EXPIRED_ON_ARRIVAL }
+        val finding = soon.single { it.flag == ExtractionFlag.EXPIRED_ON_ARRIVAL }
         assertTrue(finding.detail.contains("inside a week"), finding.detail)
     }
 
@@ -118,7 +118,7 @@ class CertificateFindingsTest {
             today = TODAY,
         )
         assertFalse(
-            suffix.any { it.flag == CertificateFlag.NAME_MISMATCH },
+            suffix.any { it.flag == ExtractionFlag.NAME_MISMATCH },
             "an insurer writing the LLC suffix is the same company; flagging it trains reviewers to ignore the flag",
         )
 
@@ -129,7 +129,7 @@ class CertificateFindingsTest {
             supplierLegalName = "Northwind Staffing Partners",
             today = TODAY,
         )
-        val mismatch = different.single { it.flag == CertificateFlag.NAME_MISMATCH }
+        val mismatch = different.single { it.flag == ExtractionFlag.NAME_MISMATCH }
         assertTrue(mismatch.detail.contains("Beacon Technical Services"), mismatch.detail)
     }
 
@@ -142,7 +142,7 @@ class CertificateFindingsTest {
             supplierLegalName = "Northwind Staffing Partners",
             today = TODAY,
         )
-        assertTrue(findings.any { it.flag == CertificateFlag.HOLDER_NOT_ACME })
+        assertTrue(findings.any { it.flag == ExtractionFlag.HOLDER_NOT_ACME })
 
         val addressed = CertificateFindings.evaluate(
             fields = certificate(holder = "ACME INC., 400 Market Street, Boston MA 02108"),
@@ -151,7 +151,7 @@ class CertificateFindingsTest {
             supplierLegalName = "Northwind Staffing Partners",
             today = TODAY,
         )
-        assertFalse(addressed.any { it.flag == CertificateFlag.HOLDER_NOT_ACME })
+        assertFalse(addressed.any { it.flag == ExtractionFlag.HOLDER_NOT_ACME })
     }
 
     private fun certificate(

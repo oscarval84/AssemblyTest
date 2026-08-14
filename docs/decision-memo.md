@@ -61,17 +61,19 @@ The payoff is the rejection. A supplier is told *"the general liability aggregat
 1,000,000; this program requires USD 2,000,000"* rather than *"rejected — incorrect information"*.
 Three rounds of email is where the three-to-six-week cycle time actually goes.
 
-### 4. Restricted documents never leave the system
+### 4. The taxpayer ID never leaves the system, and the W-9 leaves only if you say so
 
-Document types carry a classification. A W-9 and banking details are Restricted: the tax ID is
+Document types carry a classification. A W-9 and banking details are Restricted. The tax ID is
 encrypted at rest, only its last four digits are ever rendered, and it is never transmitted to a
-third-party model or pushed to the VMS. The refusal is enforced in code, not in a configuration
-flag, because a flag is something somebody eventually turns off.
+third-party model or pushed to the VMS — that part is enforced in code, with no setting attached,
+because there is nowhere in the system for a second copy of that number to land.
 
-**This is a decision we made on your behalf and would like you to confirm.** Routing a taxpayer
-identification number to an external processor is a governance call, not an engineering one, and
-you told us a past vendor was careless with exactly this class of data. See "What we need from
-you" below.
+The *document* is a separate question, and it is yours. Sending a W-9 to a model is off by default
+and turned on with one setting. We wrote it that way on purpose. Routing a taxpayer identification
+number to an external processor is a governance call rather than an engineering one, you told us a
+past vendor was careless with exactly this class of data, and a decision that needs a code change
+to act on is not really yours to make. See "What we need from you" below for what we would want in
+place first.
 
 ### 5. The model advises; a person decides
 
@@ -80,13 +82,17 @@ Where the model is enabled it does two things, and neither of them decides anyth
 It **prefills the criteria checklist** — a `PASS`/`FAIL`/`UNCLEAR` per criterion with the span of the
 document it relied on. A `FAIL` never rejects and a `PASS` never approves.
 
-And it **reads a certificate of insurance and disagrees out loud**. Your suppliers type the expiry
-date when they upload, the compliance engine runs on that date, and until now nobody checked it
+And it **reads a document and disagrees out loud**. Your suppliers type the expiry date when they
+upload a certificate, the compliance engine runs on that date, and until now nobody checked it
 against the document. Extraction compares the two, along with coverage limits against what the
 program requires and the named insured against your own record — and when the certificate says
 something else, a reviewer sees both dates and applies the correction in one click. It never
 rewrites that date on its own: replacing a mistake nobody checks with a mistake nobody can see
 would not be an improvement.
+
+The same reading works on a W-9, where the disagreement worth catching is a different one — a form
+filed under the owner's other company, which you would otherwise discover when a 1099 goes to the
+wrong entity. It is off until you turn it on, for the reason in point 4.
 
 The audit trail keeps what the model said and what the human decided as two separate facts, and
 every transmission to the processor is recorded as a disclosure event naming the model.
@@ -133,10 +139,17 @@ database read per request, which is the right trade for an internal tool of this
    we did not want to guess it.
 
 3. **Who signs off on sending documents to a third-party model?** Certificates of insurance carry
-   company and policy data and no personal identifiers. W-9s carry a taxpayer ID. We have the
-   second switched off in code. If you want it on, we need the data processing agreement, confirmed
-   retention terms from the vendor, and your compliance function's sign-off — not just your word,
-   because this is the class of thing your own clients will ask you about.
+   company and policy data and no personal identifiers, and are read wherever the model is
+   configured. W-9s carry a taxpayer ID, so they are read only where you have said so: it is one
+   setting, `AI_W9_EXTRACTION_ENABLED`, and it is off. We left it a setting rather than a refusal
+   in the code precisely because it is your call — a decision you cannot act on without asking us
+   for a release is not really yours. Before you turn it on we would want the data processing
+   agreement, confirmed retention terms from the vendor, and your compliance function's sign-off,
+   not just your word, because this is the class of thing your own clients will ask you about.
+
+   One part of it is not yours to switch, and that is deliberate: the taxpayer ID itself is never
+   read off the form. There is no field for it anywhere in that path, so the setting governs
+   whether the *document* is sent, never whether the *number* is kept.
 
 4. **Retention periods per document type.** The schema holds the field and it is deliberately
    unset. The correct value is a legal answer your counsel owns, and guessing it would be worse
@@ -154,10 +167,14 @@ message exactly as a recipient would read it. Nothing is delivered, and the prod
 than marking messages sent that it never sent. Turning it on is four environment variables and an
 SMTP credential on a domain whose SPF and DKIM records name the relay. Any provider works.
 
-**The model.** Both uses of it — the criteria prefill and certificate extraction — are built, and both
+**The model.** Both uses of it — the criteria prefill and document extraction — are built, and both
 are inert without an API key: the buttons are not offered, a reviewer ticks the checklist, and expiry
-dates are typed and validated at upload as they always were. Turning it on is an API key. The
-classification gate applies either way, and a W-9 is refused in code regardless.
+dates are typed and validated at upload as they always were. Turning it on is an API key.
+
+**W-9 extraction**, separately, is off whatever the API key says, and stays off until you set
+`AI_W9_EXTRACTION_ENABLED=true`. That is question 3 above with a switch attached. Every time a
+Restricted document does go to the model, the activity log records the transmission and names the
+setting that allowed it — so the trail shows when your decision took effect, not merely that it did.
 
 **Scheduled jobs.** The three endpoints exist and are authenticated. Creating the Cloud Scheduler
 jobs needs your GCP project.

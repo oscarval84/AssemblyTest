@@ -134,17 +134,26 @@ the model fills the checklist in first and reads the certificate — and a perso
 ANTHROPIC_API_KEY=sk-ant-… ./gradlew bootRun --args='--server.port=8085'
 ```
 
-Without the key, `DisabledCriteriaEvaluator` and `DisabledCoiExtractor` are the active implementations and
-neither button is offered. With it:
+Without the key, `DisabledCriteriaEvaluator` and `DisabledDocumentExtractor` are the active implementations
+and neither button is offered. With it:
 
 - **Ask the model** prefills the acceptance-criteria checklist with a verdict and a quoted span per criterion.
 - **Read the fields** reads a certificate of insurance and compares it with the expiry date entered on upload,
   the program's coverage minimum, and the supplier's own record. Correcting the expiry to the certificate's
   date is a separate click and is recorded with both values.
 
-Both run only on Confidential and Internal documents. A W-9 is Restricted and is refused before anything is
-transmitted — a code-level gate rather than a setting, so no environment variable can turn it on. Every call
-writes a `DOCUMENT_DISCLOSED` audit event naming the processor, the model and the purpose.
+Criteria review runs on Confidential and Internal documents only; a W-9 is Restricted and is refused there
+before anything is transmitted. Extraction reads a W-9 as well, and only where Acme has said so:
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-… AI_W9_EXTRACTION_ENABLED=true ./gradlew bootRun --args='--server.port=8085'
+```
+
+That setting governs whether the *document* is sent. It cannot cause the taxpayer identification number to be
+stored — nothing in the extraction path has a field for one, whatever the flag says.
+
+Every call writes a `DOCUMENT_DISCLOSED` audit event naming the processor, the model and the purpose, and a
+Restricted document additionally records the setting that allowed it.
 
 ## Inspect the database
 

@@ -18,7 +18,7 @@ import {
   useRejectionReasons,
   useReviewDecision,
 } from '../../api/queries'
-import CertificateFields from './CertificateFields'
+import ExtractedFields from './ExtractedFields'
 import CriteriaChecklist from './CriteriaChecklist'
 import { Field } from '../../components/common'
 import { formatDate, formatDateTime, formatFileSize } from '../../lib/format'
@@ -142,7 +142,7 @@ export default function ReviewDialog({
               <Field label="Expires">{target.expiresOn ? formatDate(target.expiresOn) : 'Does not expire'}</Field>
             </Box>
 
-            {mode === 'decide' ? <CertificateFields submissionId={target.submissionId} /> : null}
+            {mode === 'decide' ? <ExtractedFields submissionId={target.submissionId} /> : null}
 
             {mode === 'decide' ? (
               <CriteriaChecklist

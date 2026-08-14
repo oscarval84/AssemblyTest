@@ -57,7 +57,10 @@ itself and compares it with the expiry date the supplier typed, the program's co
 the supplier's own record; where the certificate disagrees about expiry, one click applies its date
 and the change is recorded with both values. A FAIL never rejects, a PASS never approves, and
 nothing rewrites a date on its own — it saves reading time, not judgement. With no key configured
-neither button is there, and review works the same way.)*
+neither button is there, and review works the same way. The same reading works on a W-9 — is this
+form filed under the company we think we are onboarding? — and it is off unless Acme turns it on,
+because that document carries a taxpayer ID and sending it is their call. The taxpayer ID itself is
+never read off the form whatever they decide.)*
 
 Open **Notifications**. The rejection email is there, in full, as the supplier will read it.
 

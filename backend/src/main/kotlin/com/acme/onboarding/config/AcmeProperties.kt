@@ -79,6 +79,20 @@ data class AcmeProperties(
     data class Ai(
         val apiKey: String,
         val model: String,
+        /**
+         * Whether a W-9 may be sent to the model.
+         *
+         * False unless Acme sets it, and it is a setting rather than a code
+         * refusal on purpose: a W-9 carries a taxpayer identification number,
+         * that makes transmitting it a governance decision, and the decision
+         * memo says the decision is Acme's. A decision they cannot exercise
+         * without a deploy is not theirs.
+         *
+         * What is *not* configurable is what gets stored: there is no field for
+         * a taxpayer identification number anywhere in the extraction path, so
+         * no value of this flag can cause one to be kept.
+         */
+        val w9ExtractionEnabled: Boolean,
     )
 
     data class Security(

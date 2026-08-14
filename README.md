@@ -69,6 +69,8 @@ detectable rather than merely forbidden. Document *reads* are audited too. `/ops
 supplier's chain on demand and exports the result.
 
 **Classification decides handling.** Every document type carries one. Restricted documents — a W-9,
-banking details — are encrypted at rest, masked after submission, never pushed to the VMS, and never
-transmitted to a third-party model. That last refusal lives in code rather than in a configuration
-flag, because a flag is something somebody eventually turns off.
+banking details — are encrypted at rest, masked after submission, and never pushed to the VMS. Sending
+one to a third-party model is off by default and is Acme's call to make, so it is a setting they own
+(`AI_W9_EXTRACTION_ENABLED`) rather than a refusal they would need a release to lift. What is not
+theirs to switch is the taxpayer ID itself: it is never extracted, and there is no field anywhere in
+that path to hold it.

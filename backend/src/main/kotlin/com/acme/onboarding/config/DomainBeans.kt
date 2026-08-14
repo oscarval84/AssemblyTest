@@ -1,11 +1,11 @@
 package com.acme.onboarding.config
 
-import com.acme.onboarding.adapter.ai.AnthropicCoiExtractor
 import com.acme.onboarding.adapter.ai.AnthropicCriteriaEvaluator
+import com.acme.onboarding.adapter.ai.AnthropicDocumentExtractor
 import com.acme.onboarding.application.criteria.CriteriaEvaluator
 import com.acme.onboarding.application.criteria.DisabledCriteriaEvaluator
-import com.acme.onboarding.application.extraction.CoiExtractor
-import com.acme.onboarding.application.extraction.DisabledCoiExtractor
+import com.acme.onboarding.application.extraction.DisabledDocumentExtractor
+import com.acme.onboarding.application.extraction.DocumentExtractor
 import com.acme.onboarding.domain.compliance.ComplianceEvaluator
 import com.acme.onboarding.domain.requirement.RequirementResolver
 import org.springframework.context.annotation.Bean
@@ -57,15 +57,18 @@ class DomainBeans {
             ?: DisabledCriteriaEvaluator
 
     /**
-     * Reads the fields off a certificate of insurance, or the honest absence of
-     * one. Same key as the criteria prefill: an environment either has a model
-     * or it does not, and half of one would be a confusing thing to explain.
+     * Reads the fields off an uploaded document, or the honest absence of one.
+     * Same key as the criteria prefill: an environment either has a model or it
+     * does not, and half of one would be a confusing thing to explain.
+     *
+     * Which document types may actually be sent is not decided here — see
+     * `DocumentExtractionService`, where the W-9's switch lives.
      */
     @Bean
-    fun coiExtractor(properties: AcmeProperties, objectMapper: ObjectMapper): CoiExtractor =
+    fun documentExtractor(properties: AcmeProperties, objectMapper: ObjectMapper): DocumentExtractor =
         properties.ai.apiKey.takeIf { it.isNotBlank() }
-            ?.let { AnthropicCoiExtractor(it, properties.ai.model, objectMapper) }
-            ?: DisabledCoiExtractor
+            ?.let { AnthropicDocumentExtractor(it, properties.ai.model, objectMapper) }
+            ?: DisabledDocumentExtractor
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()

@@ -200,10 +200,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** What has already been read off this certificate, if anything */
+        /** What has already been read off this document, if anything */
         get: operations["current_1"];
         put?: never;
-        /** Read the certificate's fields and compare them with what was claimed */
+        /** Read the document's fields and compare them with the supplier record */
         post: operations["extract"];
         delete?: never;
         options?: never;
@@ -1003,11 +1003,6 @@ export interface components {
             supplierName?: string | null;
             programIds: string[];
         };
-        CertificateFinding: {
-            /** @enum {string} */
-            flag: "EXPIRY_MISMATCH" | "EXPIRED_ON_ARRIVAL" | "COVERAGE_BELOW_MINIMUM" | "NAME_MISMATCH" | "HOLDER_NOT_ACME" | "WORKERS_COMPENSATION_MISSING" | "NOT_SIGNED";
-            detail: string;
-        };
         CoiFields: {
             insurer?: string | null;
             policyNumber?: string | null;
@@ -1024,20 +1019,33 @@ export interface components {
             workersCompensationPresent?: boolean | null;
             signed?: boolean | null;
         };
+        ExtractionFinding: {
+            /** @enum {string} */
+            flag: "EXPIRY_MISMATCH" | "EXPIRED_ON_ARRIVAL" | "COVERAGE_BELOW_MINIMUM" | "NAME_MISMATCH" | "HOLDER_NOT_ACME" | "WORKERS_COMPENSATION_MISSING" | "NOT_SIGNED" | "ENTITY_TYPE_MISMATCH";
+            detail: string;
+        };
         ExtractionView: {
             /** Format: uuid */
             submissionId: string;
             available: boolean;
             model?: string | null;
-            fields: components["schemas"]["CoiFields"] | null;
+            coi: components["schemas"]["CoiFields"] | null;
+            w9: components["schemas"]["W9Fields"] | null;
             /** Format: double */
             confidence?: number | null;
-            findings: components["schemas"]["CertificateFinding"][];
+            findings: components["schemas"]["ExtractionFinding"][];
             /** Format: date */
             recordedExpiry?: string | null;
             /** Format: date-time */
             extractedAt?: string | null;
             expiryDisagrees: boolean;
+        };
+        W9Fields: {
+            legalName?: string | null;
+            businessName?: string | null;
+            taxClassification?: string | null;
+            address?: string | null;
+            signed?: boolean | null;
         };
         JudgementBody: {
             verdict: string;
@@ -1053,8 +1061,8 @@ export interface components {
             criteria: components["schemas"]["CriterionVerdict"][];
             modelAvailable: boolean;
             model?: string | null;
-            failed: components["schemas"]["CriterionVerdict"][];
             empty: boolean;
+            failed: components["schemas"]["CriterionVerdict"][];
         };
         CriterionVerdict: {
             /** Format: uuid */

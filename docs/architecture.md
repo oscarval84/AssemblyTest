@@ -298,7 +298,7 @@ No ops action anywhere in that list. That is what "kick off automated onboarding
 | Profile corrections captured during onboarding | Address, contacts, entity type — sent as **proposed** changes, never as silent overwrites |
 | Agreement executed | That it exists, the signed date, the template version, and a reference to the artifact — the file itself only if the VMS accepts documents |
 
-**What is never pushed: tax ID and bank account number.** They are classified Restricted (§7), and Restricted data does not leave this system without explicit sign-off — the same gate that keeps W-9 extraction disabled (§8). If AP expects this tool to be the source of banking data, that is a governance conversation with a data-processing answer attached, and it is queued in §12.
+**What is never pushed: tax ID and bank account number.** They are classified Restricted (§7), and Restricted data does not leave this system without explicit sign-off — the same posture that keeps W-9 extraction off unless Acme turns it on (§8). If AP expects this tool to be the source of banking data, that is a governance conversation with a data-processing answer attached, and it is queued in §12.
 
 **Reliability reuses the transactional outbox** that already exists for email, which is most of why this fits in the build at all. The `IntegrationMessage` row is written *in the same transaction* as the state change that caused it, so the VMS cannot be told about an activation that rolled back. A scheduled drain delivers with exponential backoff, and after N attempts the message dead-letters and raises a visible banner in the ops console.
 
@@ -413,7 +413,7 @@ Every document type carries a classification, and the classification drives hand
 
 | Class | Contents | Handling |
 |---|---|---|
-| **Restricted** | W-9 (TIN/SSN), banking form (account number) | Field-level encryption, masked after submission, no external processing without explicit sign-off (§8), access always audited |
+| **Restricted** | W-9 (TIN/SSN), banking form (account number) | Field-level encryption, masked after submission, no external processing unless Acme has explicitly enabled it and never of the number itself (§8), access always audited |
 | **Confidential** | Certificate of insurance, supplier agreement | Private storage, signed-URL access, access audited |
 | **Internal** | Company profile, contacts, program assignments | Standard access control |
 
@@ -526,17 +526,23 @@ Two things deliberately deferred to v2, when there is a real tenant to test agai
 
 Two features, arrived at differently. **Field extraction** was a chosen stretch goal. **Criteria-based review is client-requested** (§12, answer 2) and therefore core. They share one pipeline — same document, same client, same advisory posture, same disclosure audit — which is most of why both fit.
 
-### Field extraction from certificates of insurance (stretch goal)
+### Field extraction from uploaded documents (stretch goal)
 
 **Feature.** A reviewer can have the model read a certificate: insurer, policy number, coverage limits, effective and expiry dates, named insured, certificate holder, workers' compensation, signature. What it reads is compared against the submission, the supplier record, and the strictest program the certificate is held to, and the disagreements surface as findings — the reviewer sees *"the general liability aggregate shows USD 1,000,000; this program requires USD 2,000,000"* instead of opening the PDF and comparing by eye.
+
+The same path reads a W-9 — name, business name, federal tax classification, address, signature — and compares it with the supplier's own profile. It is off unless Acme turns it on; see below.
 
 **It checks the expiry date rather than supplying it.** The original design had extraction feed the compliance engine directly. What shipped is stronger: the supplier types the expiry at upload, it is required and validated, and the engine runs on that — extraction's job is to *disagree* when the document says otherwise. Applying the correction is a separate act by a reviewer with both dates in front of them, recorded with both values. A model that silently rewrote the date compliance runs on would have replaced a mistake nobody checks with a mistake nobody can see.
 
 **The comparisons are Acme's rules, not the model's.** `CertificateFindings` is pure and sits in the domain layer; the adapter reads the document and the domain decides whether what it read is a problem. Two consequences worth stating: the findings stay stable when a prompt changes, and they are tested without a network. The name comparison is deliberately loose — "Northwind Staffing Partners" and "Northwind Staffing Partners, LLC" are one company, and a flag that fires on that pair trains a reviewer to click past every name mismatch, including the one that mattered.
 
-**Scope is deliberately limited to the COI.** A W-9 carries a taxpayer identification number — an SSN for sole proprietors. Routing that through a third-party API is a data-governance decision, not an engineering one, and the client told us directly that a past vendor was careless with exactly this class of data. A COI carries company and policy data and no personal identifiers, so it delivers the compliance value at a fraction of the exposure.
+**The W-9 is built, and it is off.** A W-9 carries a taxpayer identification number — an SSN for sole proprietors — so it is classified Restricted, and routing it through a third-party API is a data-governance decision rather than an engineering one. The client told us directly that a past vendor was careless with exactly this class of data.
 
-W-9 extraction is **not built**, and the gate that would govern it is. Classification decides what may be sent to an external processor, and that decision is enforced in code — both `CriteriaPrefillService` and `CoiExtractionService` refuse a Restricted document before any transmission, and each screen reports the model as unavailable for one even where an API key is configured. There is deliberately no configuration flag that could turn it on, because a flag is something somebody eventually turns off. The enabling conditions are written down and unchanged: a data processing agreement with the model vendor, confirmed retention terms for submitted documents, and Acme's own sign-off. The decision memo states the position rather than leaving it implied — this is Acme's call to make with their compliance counsel, not a default we choose for them.
+That makes it Acme's decision, which is precisely why it is **a setting and not a refusal in code**: `acme.ai.w9-extraction-enabled`, false unless set, turned on by an environment variable in Cloud Run. An earlier draft of this system refused the W-9 outright and called that the safe answer. It was not. The memo tells Acme this call is theirs to make with their compliance counsel, and a decision they cannot act on without asking us for a deploy is not theirs — it is ours, wearing their name. The enabling conditions are unchanged and are stated where the setting lives: a data processing agreement with the model vendor, confirmed retention terms for submitted documents, and Acme's own sign-off.
+
+**What is not configurable is what may be kept.** The taxpayer identification number is never extracted. There is no field for it in the JSON schema sent to the model, none in `W9Fields`, none in the parser, and the system prompt tells the model not to report it — three locks, and the absent field is the one that holds. The number lives in one place, the encrypted column on the supplier profile, and no value of the flag creates a second copy of it on an extraction row. Banking details have no switch at all, because nobody asked for one and a switch nobody asked for is a switch waiting to be found.
+
+Every transmission of a Restricted document writes a disclosure event naming the setting that permitted it, so an auditor sampling the log sees when Acme's decision took effect without correlating it against a deploy.
 
 ### Criteria-based review (client-requested)
 
@@ -566,7 +572,7 @@ Certificate of insurance — Program: Contoso Manufacturing        (criteria v3)
 
 - **Advisory, still.** A `FAIL` never auto-rejects; a `PASS` never auto-approves. A person clicks, and the audit trail records both what the model said and what the human decided. "AI acceptance criteria" describes the input to the review, not a delegation of the approval.
 - **Criteria are versioned**, and every evaluation records the version it judged against. After the criteria change in June, "what was this document held to in March" still has an answer — the same reasoning that puts the template version on `SignatureRecord` (§4).
-- **Classification gates it.** Evaluation transmits the document to an external processor, so it runs on Confidential and Internal documents only. A W-9 is Restricted and stays behind the same flag as W-9 extraction, and every transmission writes a disclosure event.
+- **Classification gates it.** Evaluation transmits the document to an external processor, so it runs on Confidential and Internal documents only. A W-9 is Restricted, and criteria review has no equivalent of the extraction switch — nobody writes acceptance criteria for a W-9, so there is nothing to weigh against the exposure. Every transmission writes a disclosure event.
 
 A requirement with no criteria is normal, not broken: review falls back to a human reading the document, exactly as it works today.
 
@@ -618,7 +624,7 @@ The brief says the evaluators will drive the app themselves, with seeded realist
 | 4 | Notifications | Outbox table, templates, ops-visible log, optional real transport |
 | 5 | **VMS integration** | `VmsConnector` port, simulated adapter, scheduled pull creating suppliers/enrollments idempotently, integration outbox with retry and dead-letter, `/ops/integrations` log, writeback on activation and compliance change |
 | 6 | Compliance engine | Expiry dates, upcoming-expirations view, scheduled sweep, reminder emails |
-| 7 | AI review | Criteria authoring and versioning, reference documents, per-criterion evaluation feeding one-click rejection; COI field extraction checking expiry dates and coverage; disclosure auditing; W-9 path refused in code |
+| 7 | AI review | Criteria authoring and versioning, reference documents, per-criterion evaluation feeding one-click rejection; COI field extraction checking expiry dates and coverage; W-9 extraction behind a switch Acme owns, with no field for the taxpayer ID; disclosure auditing |
 | 8 | Deliverables | Decision memo, Loom script, seeded demo world with reset (§9), demo logins for all four roles |
 
 **Status.** This section describes the intended design; what is actually built on any given day lives in
@@ -626,16 +632,17 @@ The brief says the evaluators will drive the app themselves, with seeded realist
 disagree. Every workstream is delivered.
 
 Two capabilities are built and switched off, each waiting on a credential rather than on code: outbox delivery
-(4) needs an SMTP host, and the model behind criteria prefill and certificate extraction (7) needs an Anthropic
+(4) needs an SMTP host, and the model behind criteria prefill and document extraction (7) needs an Anthropic
 API key. The product is designed to be correct with both off — the outbox says plainly that nothing is leaving,
 a reviewer ticks each criterion by hand, and expiry dates are typed and validated at upload whether or not
-anything reads the certificate. The W-9 path is not a flag but a refusal in code, for the reason §8 gives.
+anything reads the certificate. A third switch is off for a different reason: W-9 extraction waits on Acme's
+decision rather than on a credential, which is why §8 makes it a setting they can turn.
 
 Workstreams 0–4 are the required core and ship first. **5 is now core too** — the client called the VMS integration critically important, which promotes it above the stretch goals rather than beside them. 6 is the remaining chosen stretch goal, and 7 is half core (criteria review, from answer 2) and half stretch (field extraction). 8 runs alongside rather than at the end.
 
 **Two days did not get longer, so something gives.** Naming the cuts is more useful than discovering them at hour 40:
 
-- **W-9 extraction ships as documented design, not code** — and stayed that way. It was already refused by classification (§8), so building it buys a reviewer nothing they can see and buys Acme a decision they have not made.
+- ~~**W-9 extraction ships as documented design, not code.**~~ Reversed, and worth saying why rather than quietly restoring it. The cut was justified as governance — the document is Restricted, so refusing it in code looked like the safe answer. It was the wrong one twice over: the brief names the W-9 as the example of AI in the product, and the memo tells Acme the decision is theirs while leaving them unable to act on it without us. What shipped separates the two halves properly. Acme decides whether the document is sent, through a setting they own. We decide that the taxpayer identification number is never read or stored, and that is not configurable.
 - ~~**The auditor export ships CSV only.**~~ Both shipped in the end: the filter came first and the PDF reused the PDFBox renderer already carrying the executed agreement, so the second format was a page layout rather than a capability.
 - **Criteria authoring is a plain ordered list**, not a rule builder with operators and types. Plain English is what the client asked to input, and it is also what the model reads best.
 
@@ -675,7 +682,7 @@ The brief allows three questions during the build. All three were asked and answ
 3. **Does the writeback include restricted fields?** Tax ID and bank account are classified Restricted (§7), so v1 does not transmit them. If AP expects this tool to be the source of banking data, that is a governance decision with a data-processing answer attached, not a mapping change.
 4. **Who authors acceptance criteria, and can a failed criterion ever auto-reject?** v1 keeps every rejection a human action with the AI advisory. If Marcus wants "expired on arrival" to reject automatically, that is a small change and a large policy shift.
 5. **Retention periods per document type.** Tax and payment records carry statutory obligations that outlast the supplier relationship. The schema is configurable and deliberately unset; the correct values are Acme's counsel's answer, not an engineering guess.
-6. **External processing of W-9s.** Criteria review sends Confidential and Internal documents to the model; a Restricted one is refused in code (§8). Lifting that needs a data processing agreement, confirmed vendor retention terms, and Acme's sign-off. Who owns that decision — Dana, or a compliance function above her?
+6. **External processing of W-9s.** The switch exists and is off (§8). Turning it on needs a data processing agreement, confirmed vendor retention terms, and a sign-off — and the open question is whose. Dana, or a compliance function above her? This is the one queued question with a code path already waiting on the answer.
 7. **Who holds `ADMIN`?** Is Marcus an admin, or is Acme-staff administration a separate function? This determines whether the administration module is a daily surface or a rarely-touched one, which changes where it sits in the navigation.
 8. **Program manager visibility.** Do they see every supplier in their program including those still onboarding, or only active ones? v1 shows all with stage visible, on the assumption that a program manager wants to know what is coming.
 9. **Do Acme's enterprise clients impose their own vendor-governance requirements** that this system needs to satisfy — evidence formats, retention floors, access-review cadence? Acme is audited by its clients, so their requirements may be stricter than Acme's own.

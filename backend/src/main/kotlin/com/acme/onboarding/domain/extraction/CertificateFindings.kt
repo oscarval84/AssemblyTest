@@ -3,40 +3,6 @@ package com.acme.onboarding.domain.extraction
 import java.time.LocalDate
 
 /**
- * What is wrong with a certificate, as a reviewer would put it.
- *
- * Deliberately a small closed set rather than free text: each of these is a
- * comparison somebody would otherwise do by eye between the document, the
- * program's requirements, and the supplier's own record.
- */
-enum class CertificateFlag {
-    /** The date the supplier typed is not the date on the certificate. */
-    EXPIRY_MISMATCH,
-
-    /** The certificate is already expired, or expires before anyone could act. */
-    EXPIRED_ON_ARRIVAL,
-
-    /** Aggregate coverage is below what this program requires. */
-    COVERAGE_BELOW_MINIMUM,
-
-    /** The named insured is not the company Acme is onboarding. */
-    NAME_MISMATCH,
-
-    /** Acme is not named as the certificate holder. */
-    HOLDER_NOT_ACME,
-
-    WORKERS_COMPENSATION_MISSING,
-    NOT_SIGNED,
-}
-
-/** One finding, with the numbers a reviewer needs to act on it. */
-data class CertificateFinding(
-    val flag: CertificateFlag,
-    /** Written for a person, and quotable to a supplier. */
-    val detail: String,
-)
-
-/**
  * Compares what a certificate says against what was expected of it.
  *
  * Pure, and in the domain layer, because these are Acme's rules rather than the
@@ -58,7 +24,7 @@ object CertificateFindings {
         requiredAggregate: Long?,
         supplierLegalName: String,
         today: LocalDate,
-    ): List<CertificateFinding> = buildList {
+    ): List<ExtractionFinding> = buildList {
         // The comparison that matters most. The supplier types the expiry date
         // at upload and the whole compliance engine runs on it; if the document
         // says something else, one of the two is wrong and the wrong one might
@@ -66,8 +32,8 @@ object CertificateFindings {
         // certificate that lapsed while the system thought it was current.
         if (fields.expiresOn != null && typedExpiry != null && fields.expiresOn != typedExpiry) {
             add(
-                CertificateFinding(
-                    CertificateFlag.EXPIRY_MISMATCH,
+                ExtractionFinding(
+                    ExtractionFlag.EXPIRY_MISMATCH,
                     "The certificate expires ${fields.expiresOn}, and $typedExpiry was entered on upload.",
                 ),
             )
@@ -76,15 +42,15 @@ object CertificateFindings {
         fields.expiresOn?.let { expiry ->
             if (!expiry.isAfter(today)) {
                 add(
-                    CertificateFinding(
-                        CertificateFlag.EXPIRED_ON_ARRIVAL,
+                    ExtractionFinding(
+                        ExtractionFlag.EXPIRED_ON_ARRIVAL,
                         "The certificate expired on $expiry, before it was reviewed.",
                     ),
                 )
             } else if (expiry.isBefore(today.plusDays(TOO_SOON_DAYS))) {
                 add(
-                    CertificateFinding(
-                        CertificateFlag.EXPIRED_ON_ARRIVAL,
+                    ExtractionFinding(
+                        ExtractionFlag.EXPIRED_ON_ARRIVAL,
                         "The certificate expires on $expiry, inside a week. Ask for the renewal now.",
                     ),
                 )
@@ -95,28 +61,28 @@ object CertificateFindings {
             fields.generalLiabilityAggregate < requiredAggregate
         ) {
             add(
-                CertificateFinding(
-                    CertificateFlag.COVERAGE_BELOW_MINIMUM,
+                ExtractionFinding(
+                    ExtractionFlag.COVERAGE_BELOW_MINIMUM,
                     "The general liability aggregate shows ${money(fields.generalLiabilityAggregate)}; " +
                         "this program requires ${money(requiredAggregate)}.",
                 ),
             )
         }
 
-        if (fields.namedInsured != null && !namesMatch(fields.namedInsured, supplierLegalName)) {
+        if (fields.namedInsured != null && !CompanyNames.match(fields.namedInsured, supplierLegalName)) {
             add(
-                CertificateFinding(
-                    CertificateFlag.NAME_MISMATCH,
+                ExtractionFinding(
+                    ExtractionFlag.NAME_MISMATCH,
                     "The certificate insures \"${fields.namedInsured}\"; the supplier record says " +
                         "\"$supplierLegalName\".",
                 ),
             )
         }
 
-        if (fields.certificateHolder != null && !mentionsAcme(fields.certificateHolder)) {
+        if (fields.certificateHolder != null && !CompanyNames.mentionsAcme(fields.certificateHolder)) {
             add(
-                CertificateFinding(
-                    CertificateFlag.HOLDER_NOT_ACME,
+                ExtractionFinding(
+                    ExtractionFlag.HOLDER_NOT_ACME,
                     "The certificate holder reads \"${fields.certificateHolder}\", which does not name Acme.",
                 ),
             )
@@ -124,8 +90,8 @@ object CertificateFindings {
 
         if (fields.workersCompensationPresent == false) {
             add(
-                CertificateFinding(
-                    CertificateFlag.WORKERS_COMPENSATION_MISSING,
+                ExtractionFinding(
+                    ExtractionFlag.WORKERS_COMPENSATION_MISSING,
                     "No workers' compensation coverage is shown.",
                 ),
             )
@@ -133,37 +99,14 @@ object CertificateFindings {
 
         if (fields.signed == false) {
             add(
-                CertificateFinding(
-                    CertificateFlag.NOT_SIGNED,
+                ExtractionFinding(
+                    ExtractionFlag.NOT_SIGNED,
                     "The certificate carries no authorised representative's signature.",
                 ),
             )
         }
     }
 
-    /**
-     * Whether two company names are the same company.
-     *
-     * Compared loosely on purpose. "Northwind Staffing Partners" and "Northwind
-     * Staffing Partners, LLC" are one company, and an insurer writes whichever
-     * one is on the policy. Flagging that pair would train a reviewer to ignore
-     * the flag, which costs more than the mismatch it would catch.
-     */
-    private fun namesMatch(one: String, other: String): Boolean = normalise(one) == normalise(other)
-
-    private fun mentionsAcme(holder: String): Boolean = normalise(holder).contains("acme")
-
-    private val SUFFIXES = setOf("llc", "inc", "incorporated", "co", "corp", "corporation", "ltd", "lp", "llp")
-
-    private fun normalise(name: String): String = name
-        .lowercase()
-        .map { if (it.isLetterOrDigit() || it.isWhitespace()) it else ' ' }
-        .joinToString("")
-        .split(' ')
-        .filter { it.isNotBlank() && it !in SUFFIXES }
-        .joinToString(" ")
-
-    private fun money(amount: Long): String = "USD " + "%,d".format(amount)
 }
 
 /**

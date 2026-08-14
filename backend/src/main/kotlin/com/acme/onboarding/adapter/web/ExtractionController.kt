@@ -1,6 +1,6 @@
 package com.acme.onboarding.adapter.web
 
-import com.acme.onboarding.application.extraction.CoiExtractionService
+import com.acme.onboarding.application.extraction.DocumentExtractionService
 import com.acme.onboarding.application.extraction.ExtractionView
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController
 import java.util.UUID
 
 /**
- * Field extraction from a certificate of insurance.
+ * Field extraction from an uploaded document.
  *
  * Three endpoints and a clear split: reading is free of side effects, running
  * the model transmits the document to a third party and is recorded as such, and
@@ -22,15 +22,15 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/documents/{submissionId}/extraction")
 @Tag(name = "Field extraction")
-class ExtractionController(private val extraction: CoiExtractionService) {
+class ExtractionController(private val extraction: DocumentExtractionService) {
 
     @GetMapping
-    @Operation(summary = "What has already been read off this certificate, if anything")
+    @Operation(summary = "What has already been read off this document, if anything")
     fun current(@PathVariable submissionId: UUID): ExtractionView =
         extraction.current(CurrentActor.require(), submissionId)
 
     @PostMapping
-    @Operation(summary = "Read the certificate's fields and compare them with what was claimed")
+    @Operation(summary = "Read the document's fields and compare them with the supplier record")
     fun extract(@PathVariable submissionId: UUID): ExtractionView =
         extraction.extract(CurrentActor.require(), submissionId)
 

@@ -10,18 +10,22 @@ import { Field } from '../../components/common'
 import { formatDate, formatMoney } from '../../lib/format'
 
 /**
- * What the certificate says, next to what was claimed about it.
+ * What the document says, next to what was claimed about it.
  *
- * The supplier types the expiry date at upload and the whole compliance engine
- * runs on it. Nobody checked it against the document — and a date wrong by two
- * months is the shape of the failure that let a supplier work on a lapsed
- * certificate twice. So this panel's job is the disagreement, not the fields:
- * the reading is only interesting where it contradicts something.
+ * For a certificate, the supplier types the expiry date at upload and the whole
+ * compliance engine runs on it. Nobody checked it against the document — and a
+ * date wrong by two months is the shape of the failure that let a supplier work
+ * on a lapsed certificate twice. So this panel's job is the disagreement, not
+ * the fields: the reading is only interesting where it contradicts something.
+ *
+ * For a W-9 the disagreement is a different one — whether the form is filed
+ * under the company Acme thinks it is onboarding — and it only appears at all
+ * where Acme has turned that on.
  *
  * Nothing here decides anything. Correcting the expiry is one deliberate click
  * by a reviewer who has both dates in front of them.
  */
-export default function CertificateFields({ submissionId }: { submissionId: string }) {
+export default function ExtractedFields({ submissionId }: { submissionId: string }) {
   const extraction = useExtraction(submissionId)
   const extract = useExtractFields(submissionId)
   const applyExpiry = useApplyExtractedExpiry(submissionId)
@@ -37,9 +41,10 @@ export default function CertificateFields({ submissionId }: { submissionId: stri
   if (extraction.isError || !extraction.data) return null
 
   const view = extraction.data
-  // Not a certificate, or a document that may never be sent to a model. Saying
-  // nothing beats explaining an absence nobody asked about.
-  if (!view.available && !view.fields) return null
+  const read = view.coi ?? view.w9 ?? null
+  // A document this never reads, or one nobody has read yet in an environment
+  // with no model. Saying nothing beats explaining an absence nobody asked about.
+  if (!view.available && !read) return null
 
   const failure =
     extract.error instanceof RequestFailed
@@ -52,11 +57,11 @@ export default function CertificateFields({ submissionId }: { submissionId: stri
     <Box>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', mb: 1 }}>
         <Typography variant="overline" component="div" sx={{ flexGrow: 1 }}>
-          What the certificate says
+          What the document says
         </Typography>
         {view.available ? (
           <Button size="small" onClick={() => extract.mutate()} disabled={extract.isPending}>
-            {extract.isPending ? 'Reading…' : view.fields ? 'Read it again' : 'Read the fields'}
+            {extract.isPending ? 'Reading…' : read ? 'Read it again' : 'Read the fields'}
           </Button>
         ) : null}
       </Stack>
@@ -67,17 +72,16 @@ export default function CertificateFields({ submissionId }: { submissionId: stri
         </Alert>
       ) : null}
 
-      {!view.fields ? (
+      {!read ? (
         <Typography variant="body2" color="text.secondary">
-          Nothing read yet. This checks the certificate against the expiry date entered on upload and
-          against what the program requires — it does not decide anything.
+          Nothing read yet. This checks the document against what the supplier entered and against
+          what the program requires — it does not decide anything.
         </Typography>
       ) : (
         <Stack spacing={1.5}>
           {view.findings.length === 0 ? (
             <Alert severity="success" variant="outlined">
-              Nothing disagrees: the dates, the limits and the names on the certificate match what is
-              on file.
+              Nothing disagrees: what is printed on the document matches what is on file.
             </Alert>
           ) : (
             view.findings.map((finding) => (
@@ -109,28 +113,51 @@ export default function CertificateFields({ submissionId }: { submissionId: stri
               gap: 1.5,
             }}
           >
-            <Field label="Insurer">{view.fields.insurer}</Field>
-            <Field label="Policy">{view.fields.policyNumber}</Field>
-            <Field label="Insured">{view.fields.namedInsured}</Field>
-            <Field label="Certificate holder">{view.fields.certificateHolder}</Field>
-            <Field label="Each occurrence">
-              {view.fields.generalLiabilityEachOccurrence != null
-                ? formatMoney(view.fields.generalLiabilityEachOccurrence)
-                : null}
-            </Field>
-            <Field label="Aggregate">
-              {view.fields.generalLiabilityAggregate != null
-                ? formatMoney(view.fields.generalLiabilityAggregate)
-                : null}
-            </Field>
-            <Field label="Effective">{formatDate(view.fields.effectiveOn)}</Field>
-            <Field label="Expires">{formatDate(view.fields.expiresOn)}</Field>
+            {view.coi ? (
+              <>
+                <Field label="Insurer">{view.coi.insurer}</Field>
+                <Field label="Policy">{view.coi.policyNumber}</Field>
+                <Field label="Insured">{view.coi.namedInsured}</Field>
+                <Field label="Certificate holder">{view.coi.certificateHolder}</Field>
+                <Field label="Each occurrence">
+                  {view.coi.generalLiabilityEachOccurrence != null
+                    ? formatMoney(view.coi.generalLiabilityEachOccurrence)
+                    : null}
+                </Field>
+                <Field label="Aggregate">
+                  {view.coi.generalLiabilityAggregate != null
+                    ? formatMoney(view.coi.generalLiabilityAggregate)
+                    : null}
+                </Field>
+                <Field label="Effective">{formatDate(view.coi.effectiveOn)}</Field>
+                <Field label="Expires">{formatDate(view.coi.expiresOn)}</Field>
+              </>
+            ) : null}
+
+            {view.w9 ? (
+              <>
+                <Field label="Name on the form">{view.w9.legalName}</Field>
+                <Field label="Business name">{view.w9.businessName}</Field>
+                <Field label="Tax classification">{view.w9.taxClassification}</Field>
+                <Field label="Address">{view.w9.address}</Field>
+                <Field label="Signed">
+                  {view.w9.signed == null ? null : view.w9.signed ? 'Yes' : 'No'}
+                </Field>
+              </>
+            ) : null}
           </Box>
+
+          {view.w9 ? (
+            <Alert severity="info" variant="outlined">
+              The taxpayer ID is not read off the form and is not stored here. It is on the
+              supplier's profile, encrypted, with only the last four digits ever shown.
+            </Alert>
+          ) : null}
 
           <Typography variant="caption" color="text.secondary">
             Read by {view.model}
             {view.confidence != null ? ` · ${Math.round(view.confidence * 100)}% confident` : ''}. A
-            blank field means the certificate does not say, or that part of the scan is not legible —
+            blank field means the document does not say, or that part of the scan is not legible —
             read it yourself before trusting the gap.
           </Typography>
         </Stack>
