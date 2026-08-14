@@ -1,218 +1,120 @@
 # Decision memo — Acme supplier onboarding, v1
 
-**To:** Dana Whitfield, VP Supplier Management
-**Re:** What we built, what we chose not to build, and what we need from you
-**Scope:** two focused days
+**To:** Dana Whitfield, VP Supplier Management · **From:** Oscar Valverde
+**Re:** What I built, what I cut, and what I need from you · **Scope:** two focused days
+
+*Design detail and the full decision record live in [architecture.md](architecture.md); this is the
+short version.*
 
 ---
 
-## The short version
+## What matters most, and what runs today
 
-You told us three things went wrong before: onboarding takes three to six weeks, suppliers
-experience it as email into a void, and twice a supplier worked on an expired insurance
-certificate. This build attacks those three directly and treats everything else as secondary.
+Three things went wrong before: onboarding takes three to six weeks, suppliers experience it as
+email into a void, and twice a supplier worked on an expired certificate. Everything I built attacks
+one of those; everything I cut failed to.
 
-What runs end to end today: a supplier is invited, registers, completes a company profile, sees a
-per-program checklist of exactly what Acme needs and why, uploads documents, signs the master
-agreement, and watches each item move. Marcus reviews from a queue ordered by wait time, accepts or
-hands a document back with a reason the supplier reads verbatim, and approving the last outstanding
-item completes onboarding and activates the programs. A nightly sweep chases expiring certificates.
-Assignments pull in from the VMS and outcomes are written back. Every state change is an event, and
-you can hand the resulting history to an auditor as a spreadsheet or as a document.
+End to end today: a supplier is invited, registers, and sees a per-program checklist of what Acme
+needs and why — with what is already on file shown rather than hidden, so a second program opens
+mostly green. They upload, sign, and watch each item move. Marcus reviews from a queue ordered by
+wait time and hands a document back with a reason the supplier reads verbatim; approving the last
+item activates the programs. A nightly sweep chases expiring certificates, assignments pull from the
+VMS and outcomes are written back, and every state change is an event you can export for an auditor.
 
-Two things are deliberately not switched on, and both are a credential rather than a build: email
-delivery, and the model — which prefills the review checklist and reads a certificate of insurance to
-check what the supplier typed against what the document says. Details below.
+## Four decisions worth your attention
 
----
+**Compliance is computed, never stored.** A `COMPLIANT` flag becomes a lie at midnight with nothing
+having touched the row, so status is derived from today's date in your business time zone on every
+read. This is the direct answer to the certificate that lapsed twice: there is no state where the
+database says compliant and the calendar disagrees.
 
-## Decisions we made, and why
+**The audit log is hash-chained.** Each event carries the hash of its predecessor, so tampering is
+*detectable* rather than merely forbidden — and you run the check yourself from the audit screen.
+That matters because your clients audit you, and "we restricted access" is the weaker answer.
+Document *reads* are audited too; no bucket permission answers "who opened this banking form".
 
-### 1. Status is computed, never stored
+**You write the acceptance criteria, not me.** You asked for reference documents plus criteria you
+input, which is a better answer than the three rejection reasons I asked for: a seeded catalog
+encodes what I guessed on the day I guessed it, authored criteria encode what you require, per
+program, with no deploy. The payoff is the rejection — *"the aggregate shows USD 1,000,000; this
+program requires USD 2,000,000"* instead of *"rejected — incorrect information"*. Three rounds of
+email is where the cycle time actually goes.
 
-A `COMPLIANT` flag written to a row becomes a lie at midnight with nothing having touched the row.
-Compliance is derived from the current date, in Acme's business time zone, on every read. The
-nightly job exists for the two things a computed value cannot do on its own — tell somebody, and
-record that the transition happened.
+**The taxpayer ID never leaves; the W-9 leaves only if you say so.** The number is encrypted, masked
+to four digits, never sent anywhere — enforced in code, with no setting, because there is nowhere in
+the system for a second copy to land. Whether the *document* goes to a model is a governance call,
+so it is a setting you own rather than a refusal you would need a release to lift.
 
-This is the direct answer to the certificate that lapsed twice. There is no state where the
-database says a supplier is compliant and the calendar disagrees.
+## E-signature: how I would productionize it against your 500/month cap
 
-### 2. The audit log is hash-chained and the application cannot rewrite it
+Signing produces a real artifact, not a checkbox: a generated PDF carrying the typed name,
+timestamp, signer identity, originating IP and the SHA-256 of the exact template text, linked to a
+versioned signature record. That is what an auditor asks for.
 
-Every event carries the hash of its predecessor, and the application's database role holds only
-`INSERT` and `SELECT` on that table. Deleting or altering an event breaks the chain, which makes
-tampering *detectable* rather than merely forbidden — a distinction that matters because your
-clients audit you, and "we restricted access" is a weaker answer than "here is the check you can
-run yourself".
+**The cap is probably not your binding constraint, and that changes the answer.** You onboard ~300
+suppliers a year — about 25 master agreements a month against a 500-envelope cap, five percent of
+your contract. If you are near the ceiling, envelopes are going to documents that do not need vendor
+weight.
 
-You can run it: choose a supplier on the audit export screen and it walks their chain and reports
-whether it is whole. Reads are audited too, not just writes — "who opened this supplier's banking
-form, and when" is a question no bucket-level permission can answer.
+So I would **tier it rather than buy more envelopes**:
 
-### 3. Acme writes the acceptance criteria, not us
+- **Master supplier agreement → a vendor envelope.** One document per supplier, real legal exposure,
+  worth the per-signature cost. ~25/month.
+- **Everything else — addenda, attestations, acknowledgements → the in-product signature.** Under
+  ESIGN/UETA a typed name with demonstrated intent and a tamper-evident trail is legally effective
+  between businesses. A vendor buys dispute defensibility and identity assurance, not validity, and
+  for an addendum to an already-executed master agreement that is usually not worth paying for.
 
-Asked which three or four reasons your team rejects documents for, you described something better:
-let Acme enter the criteria and check submissions against those. A seeded catalog encodes what we
-guessed on the day we guessed it; authored criteria encode what you actually require, per program,
-maintained by the people who own the requirement, with no deploy.
+Implementation is an adapter behind the port that already exists plus a webhook — about a week, no
+schema change. I expect tiering keeps you inside your current contract rather than upgrading it.
 
-The payoff is the rejection. A supplier is told *"the general liability aggregate shows USD
-1,000,000; this program requires USD 2,000,000"* rather than *"rejected — incorrect information"*.
-Three rounds of email is where the three-to-six-week cycle time actually goes.
+## Time and budget
 
-### 4. The taxpayer ID never leaves the system, and the W-9 leaves only if you say so
+Two days, roughly 17 focused hours: day one 12:23–23:45, day two from 07:10. Approximately:
 
-Document types carry a classification. A W-9 and banking details are Restricted. The tax ID is
-encrypted at rest, only its last four digits are ever rendered, and it is never transmitted to a
-third-party model or pushed to the VMS — that part is enforced in code, with no setting attached,
-because there is nowhere in the system for a second copy of that number to land.
+| | |
+|---|---|
+| **~55%** | The five core features — intake, documents end to end, pipeline, roles and admin, notifications |
+| **~20%** | VMS integration and criteria-based review — the two things you called critical, treated as core rather than stretch |
+| **~15%** | Stretch: compliance engine, then certificate field extraction |
+| **~10%** | Deploy, and correcting four defects that only appear in a deployed environment |
 
-The *document* is a separate question, and it is yours. Sending a W-9 to a model is off by default
-and turned on with one setting. We wrote it that way on purpose. Routing a taxpayer identification
-number to an external processor is a governance call rather than an engineering one, you told us a
-past vendor was careless with exactly this class of data, and a decision that needs a code change
-to act on is not really yours to make. See "What we need from you" below for what we would want in
-place first.
+Claude Code credits: **$XX of the $75.** The best-spent stretch was not writing features. It was the
+last one, where I stopped adding and went hunting for what only breaks in a deployed environment —
+four defects, including one that would have shown you an empty application and one that wrote an API
+key into a log.
 
-### 5. The model advises; a person decides
+## What v2 looks like
 
-Where the model is enabled it does two things, and neither of them decides anything.
+1. **The real VMS connector.** Everything except the vendor adapter is built and exercised —
+   idempotent pull, retry with backoff, dead-lettering, conflict flagging. Give me credentials and a
+   field map.
+2. **Reporting for your QBR.** Cycle time and funnel by program and stage — a reading of the audit
+   log rather than new instrumentation, because every event is already recorded.
+3. **Per-program document decisions**, if you need one certificate accepted for Meridian and
+   rejected for Northstar at once. Today it carries one decision. See question 3.
+4. **Hardening**: split the database role that migrates from the one that serves, add malware
+   scanning ahead of storage, put it through a penetration test.
+5. **SSO through Entra ID**, which you said comes later. The session layer is where it plugs in.
 
-It **prefills the criteria checklist** — a `PASS`/`FAIL`/`UNCLEAR` per criterion with the span of the
-document it relied on. A `FAIL` never rejects and a `PASS` never approves.
+## What I need from you
 
-And it **reads a document and disagrees out loud**. Your suppliers type the expiry date when they
-upload a certificate, the compliance engine runs on that date, and until now nobody checked it
-against the document. Extraction compares the two, along with coverage limits against what the
-program requires and the named insured against your own record — and when the certificate says
-something else, a reviewer sees both dates and applies the correction in one click. It never
-rewrites that date on its own: replacing a mistake nobody checks with a mistake nobody can see
-would not be an improvement.
+1. **Which VMS, and who owns the field map?** Also: when the VMS's legal name and an approved W-9
+   disagree, which wins? Today I flag it and keep both, because one is wrong and a person should say
+   which.
+2. **Does an expired certificate stop a placement?** Today it reopens document collection and flags
+   the supplier; it does not suspend them. That is your policy call, not mine to guess.
+3. **Must one certificate clear the strictest program?** Northstar wants USD 2M and Meridian 1M. My
+   assumption is that clearing the stricter clears both. Say so if not.
+4. **Who signs off on sending a W-9 to a model, and what is your retention period per document
+   type?** The retention field ships deliberately unset — that is your counsel's answer, and guessing
+   it would be worse than asking.
 
-The same reading works on a W-9, where the disagreement worth catching is a different one — a form
-filed under the owner's other company, which you would otherwise discover when a 1099 goes to the
-wrong entity. It is off until you turn it on, for the reason in point 4.
+## Honest risks
 
-The audit trail keeps what the model said and what the human decided as two separate facts, and
-every transmission to the processor is recorded as a disclosure event naming the model.
-
-The honest framing: this saves reading time. It does not save judgement, and the product is
-designed to be correct with it switched off.
-
-### 6. Suppliers are deactivated, never deleted
-
-Statutory retention outlasts the relationship. Document *content* can be purged independently of
-the record that it existed, was approved by whom, and when — so an erasure request destroys the
-file and leaves the chain intact, with a purge event in it.
-
-### 7. Server-side sessions rather than tokens
-
-"Manage access without developer help" means an admin can end somebody's access *now*. A
-revocable session row does that; a self-contained token does not until it expires. The cost is a
-database read per request, which is the right trade for an internal tool of this size.
-
----
-
-## What we cut, and what it would take to add
-
-| Cut | Why | To add |
-|---|---|---|
-| **Automatic extraction on upload** | Certificate extraction is built, but a reviewer runs it. Running it on every upload would transmit every certificate to a processor whether or not anyone was going to read the result — a cost and a disclosure decision that is yours, not ours. | A scheduled job over pending submissions. Hours, once you have decided. |
-| **A real e-signature vendor** | Signing produces an executed PDF with the typed name, timestamp, IP, and the hash of the exact template text. That is the artifact an auditor asks for. A vendor adds legal weight, not capability. | A procurement decision first, then an adapter. |
-| **Bulk supplier import** | The VMS pull is the import path that matters, and it is built. A spreadsheet importer would compete with it. | Only if suppliers exist outside the VMS in numbers. |
-| **SSO / SAML** | You said it comes later. The account model is already role-based and the session layer is where it plugs in. | Entra ID federation; roughly a week including provisioning questions. |
-| **Malware scanning on upload** | Uploads are capped at 10 MB, restricted to PDF/PNG/JPEG, and validated by magic bytes rather than by filename. Scanning is a real gap and a documented one, not an oversight. | A scanning service in front of the storage adapter. |
-| **A vendor-specific VMS connector** | We do not know which VMS you run. v1 ships the port, the automation, and the reliability machinery against a simulated one. | The vendor's credentials and a field map. The port does not change. |
-
----
-
-## What we need from you
-
-1. **Which VMS do you run, and who owns the field mapping?** The integration is built to a port. The
-   remaining work is a vendor adapter and a decision about which system wins when the VMS's legal
-   name and an approved W-9 disagree. Today we flag the conflict and keep both values, because one
-   of them is wrong and a person should decide which.
-
-2. **Does an expired certificate stop a placement?** Today expiry reopens document collection and
-   flags the supplier; it does not suspend them. That is a policy question with a VMS answer, and
-   we did not want to guess it.
-
-3. **Who signs off on sending documents to a third-party model?** Certificates of insurance carry
-   company and policy data and no personal identifiers, and are read wherever the model is
-   configured. W-9s carry a taxpayer ID, so they are read only where you have said so: it is one
-   setting, `AI_W9_EXTRACTION_ENABLED`, and it is off. We left it a setting rather than a refusal
-   in the code precisely because it is your call — a decision you cannot act on without asking us
-   for a release is not really yours. Before you turn it on we would want the data processing
-   agreement, confirmed retention terms from the vendor, and your compliance function's sign-off,
-   not just your word, because this is the class of thing your own clients will ask you about.
-
-   One part of it is not yours to switch, and that is deliberate: the taxpayer ID itself is never
-   read off the form. There is no field for it anywhere in that path, so the setting governs
-   whether the *document* is sent, never whether the *number* is kept.
-
-4. **Retention periods per document type.** The schema holds the field and it is deliberately
-   unset. The correct value is a legal answer your counsel owns, and guessing it would be worse
-   than asking.
-
-5. **When two programs want different coverage, does one certificate have to clear the higher bar?**
-   Northstar asks for USD 2M and Meridian for USD 1M, and a supplier holds one certificate. Today
-   each program states its own minimum on the supplier's checklist and in its own acceptance
-   criteria, and a reviewer applies it — so a certificate that clears the stricter program clears
-   both. What v1 cannot do is accept the same certificate for Meridian while rejecting it for
-   Northstar: it is one document with one decision. If you need those to differ, say so and we will
-   make the decision per program; if "clears the strictest" is your rule, we are already there and
-   will say so on screen.
-
-6. **A mail domain and relay.** Delivery is one credential away (see below).
-
----
-
-## What is not switched on, and what each needs
-
-**Email delivery.** Every notification is written to a transactional outbox in the same transaction
-as the change that caused it, drained by a scheduled job, and visible at `/ops/outbox` with the
-message exactly as a recipient would read it. Nothing is delivered, and the product says so rather
-than marking messages sent that it never sent. Turning it on is four environment variables and an
-SMTP credential on a domain whose SPF and DKIM records name the relay. Any provider works.
-
-**The model.** Both uses of it — the criteria prefill and document extraction — are built, and both
-are inert without an API key: the buttons are not offered, a reviewer ticks the checklist, and expiry
-dates are typed and validated at upload as they always were. Turning it on is an API key.
-
-**W-9 extraction**, separately, is off whatever the API key says, and stays off until you set
-`AI_W9_EXTRACTION_ENABLED=true`. That is question 3 above with a switch attached. Every time a
-Restricted document does go to the model, the activity log records the transmission and names the
-setting that allowed it — so the trail shows when your decision took effect, not merely that it did.
-
-**Scheduled jobs.** The three endpoints exist and are authenticated. Creating the Cloud Scheduler
-jobs needs your GCP project.
-
----
-
-## What this costs to run
-
-Everything sits inside GCP always-free allowances except Cloud SQL, which is a deliberate paid
-choice: Postgres with real constraints and real migrations is the foundation the audit story rests
-on, and the alternatives that are free are not that. Three scheduled jobs is exactly the free
-allowance, which is why there are three and not five.
-
-The model, when enabled, is priced per document reviewed rather than per supplier, and a
-certificate is a small document. It is the one line item that scales with volume; everything else
-is flat.
-
----
-
-## The honest risk list
-
-- **This is a working integration against a simulated VMS, not a proven integration with a vendor.**
-  What it demonstrates is the contract, the automation, and the failure handling — retries with
-  backoff, dead-lettering, conflict flagging, and every exchange visible at `/ops/integrations`.
-- **Two days of hardening is two days.** The security posture is deliberate — CSRF on a cookie
-  credential, per-request authorization in the application layer, encrypted Restricted fields,
-  audited reads — but it has not been through a penetration test.
-- **The demo world is seeded data.** It is realistic on purpose (a supplier mid-flow, a rejected
-  certificate with a reason, one expiring soon) and it is not production data.
-- **Nobody has used this daily yet.** Marcus's queue is ordered by wait time because that is the
-  number his team is measured on; whether that is the right default survives contact with his team
-  or it does not.
+- **The VMS integration is proven against a simulation, not a vendor.** What it demonstrates is the
+  contract and the failure handling, both visible at `/ops/integrations`.
+- **Two days of hardening is two days**, and malware scanning is absent — uploads are capped,
+  type-restricted and validated by magic bytes rather than by filename. Both are documented gaps.
+- **Nobody has used this daily.** Marcus's queue is ordered by wait time because that is the number
+  his team is measured on. That survives contact with his team or it does not.
