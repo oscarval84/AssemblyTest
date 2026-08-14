@@ -79,10 +79,15 @@ Two days, roughly 17 focused hours: day one 12:23–23:45, day two from 07:10. A
 | **~15%** | Stretch: compliance engine, then certificate field extraction |
 | **~10%** | Deploy, and correcting four defects that only appear in a deployed environment |
 
-Claude Code credits: **$XX of the $75.** The best-spent stretch was not writing features. It was the
-last one, where I stopped adding and went hunting for what only breaks in a deployed environment —
-four defects, including one that would have shown you an empty application and one that wrote an API
-key into a log.
+Claude Code credits: **the full $75.** Worth saying where the last of it went, because it was not
+features. It went on deploying and then hunting for what only breaks in a deployed environment,
+which found four defects no test could have caught — including one where a clean database silently
+skipped seeding, so anyone starting this from scratch would have opened an empty application, and
+one where a malformed API key was written into the logs in plain text.
+
+If I had stopped when the features were done I would have submitted something that looked finished
+and greeted you with an empty screen. Spending the last of the budget on that rather than on a sixth
+feature is the allocation decision I would defend most firmly.
 
 ## What v2 looks like
 
