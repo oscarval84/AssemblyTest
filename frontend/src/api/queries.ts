@@ -15,6 +15,7 @@ import {
   type InvitationPreview,
   type CriteriaChecklist,
   type ExpiringDocument,
+  type ExtractionView,
   type IntegrationMessage,
   type OutboxView,
   type ProfileBody,
@@ -56,6 +57,7 @@ export const keys = {
   criteria: (submissionId: string) => ['criteria', submissionId] as const,
   accessHistory: (id: string) => ['access-history', id] as const,
   chainVerification: (chainKey: string) => ['chain-verification', chainKey] as const,
+  extraction: (submissionId: string) => ['extraction', submissionId] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
 
@@ -489,6 +491,64 @@ export function usePrefillCriteria(submissionId: string) {
       ),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.criteria(submissionId) })
+    },
+  })
+}
+
+/**
+ * What has already been read off a certificate, without reading it again.
+ *
+ * A query rather than part of the checklist: extraction is per document and
+ * survives the dialog being closed, so reopening a submission shows what was
+ * found last time instead of charging for it twice.
+ */
+export function useExtraction(submissionId: string): UseQueryResult<ExtractionView> {
+  return useQuery({
+    queryKey: keys.extraction(submissionId),
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/documents/{submissionId}/extraction', {
+          params: { path: { submissionId } },
+        }),
+      ),
+  })
+}
+
+/** Reads the certificate. A deliberate act: it transmits the document. */
+export function useExtractFields(submissionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.POST('/api/documents/{submissionId}/extraction', {
+          params: { path: { submissionId } },
+        }),
+      ),
+    onSuccess: (view) => queryClient.setQueryData(keys.extraction(submissionId), view),
+  })
+}
+
+/**
+ * Corrects the recorded expiry to the date on the certificate.
+ *
+ * The only place extraction touches state a supplier would notice, so it
+ * invalidates everything derived from that date — the checklist, the supplier's
+ * compliance, and the timeline that now carries the change.
+ */
+export function useApplyExtractedExpiry(submissionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async () =>
+      unwrap(
+        await api.POST('/api/documents/{submissionId}/extraction/expiry', {
+          params: { path: { submissionId } },
+        }),
+      ),
+    onSuccess: (view) => {
+      queryClient.setQueryData(keys.extraction(submissionId), view)
+      void queryClient.invalidateQueries({ queryKey: keys.reviewQueue })
+      void queryClient.invalidateQueries({ queryKey: keys.expirations })
+      void queryClient.invalidateQueries({ queryKey: keys.suppliers })
     },
   })
 }

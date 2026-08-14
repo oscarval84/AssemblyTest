@@ -189,6 +189,20 @@ class SubmissionRepository(private val db: JdbcClient) {
             .update()
     }
 
+    /**
+     * Corrects the expiry date on a submission.
+     *
+     * Narrow on purpose: compliance is computed from this column, so it is the
+     * one field a reviewer can change after upload, and only to the date printed
+     * on the document. The audit event carries both values.
+     */
+    fun updateExpiry(id: UUID, expiresOn: LocalDate) {
+        db.sql("UPDATE document_submission SET expires_on = CAST(:expiresOn AS date) WHERE id = :id")
+            .param("expiresOn", expiresOn.toString())
+            .param("id", id)
+            .update()
+    }
+
     private companion object {
         /**
          * Matches one requirement slot. `COALESCE` mirrors the partial unique

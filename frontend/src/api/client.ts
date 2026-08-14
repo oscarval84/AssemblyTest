@@ -37,6 +37,7 @@ export type IntegrationMessage = Schemas['IntegrationMessageRecord']
 export type CriteriaChecklist = Schemas['CriteriaChecklist']
 export type CriterionVerdict = Schemas['CriterionVerdict']
 export type ChainVerification = Schemas['ChainVerificationView']
+export type ExtractionView = Schemas['ExtractionView']
 
 export type RequirementState = ChecklistEntry['state']
 export type Role = Session['role']

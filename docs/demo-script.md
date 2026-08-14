@@ -51,10 +51,13 @@ From the review queue, open the pending **Certificate of Insurance** for Beacon 
 > million and this program needs two. That is the difference between one resubmission and three,
 > and three rounds of email is where the three-to-six-week cycle time actually goes.
 
-*(If a model is configured, **Ask the model** prefills the whole checklist first — a verdict and a
-quoted span per criterion. A FAIL never rejects and a PASS never approves; it saves reading time,
-not judgement. With no key configured the button is simply not there, and review works the same
-way.)*
+*(If a model is configured, two buttons appear on this dialog. **Ask the model** prefills the whole
+checklist — a verdict and a quoted span per criterion. **Read the fields** reads the certificate
+itself and compares it with the expiry date the supplier typed, the program's coverage minimum, and
+the supplier's own record; where the certificate disagrees about expiry, one click applies its date
+and the change is recorded with both values. A FAIL never rejects, a PASS never approves, and
+nothing rewrites a date on its own — it saves reading time, not judgement. With no key configured
+neither button is there, and review works the same way.)*
 
 Open **Notifications**. The rejection email is there, in full, as the supplier will read it.
 
@@ -90,7 +93,8 @@ Back as Marcus, open **Expiring**.
 
 > Compliance is computed from today's date on every read. There is no state where the database says
 > compliant and the calendar disagrees — which is precisely how a supplier ended up working on a
-> lapsed certificate twice.
+> lapsed certificate twice. The remaining hole was the date itself: a supplier types it at upload and
+> nobody checked it against the document. That is what certificate extraction closes.
 
 ---
 
@@ -146,7 +150,7 @@ Sign in as **priya.raman@acme-msp.example** (Program manager).
 
 ## Close
 
-> Two days. Five core flows finished rather than fifteen started. Two things are switched off and
-> both are a credential rather than a build: email delivery, and the model that prefills the
-> checklist. The decision memo lists what we cut, what it would take to add, and the five questions
-> we need Acme to answer.
+> Two days. Five core flows finished rather than fifteen started, plus both stretch goals. Two
+> things are switched off and both are a credential rather than a build: email delivery, and the
+> model. The decision memo lists what we cut, what it would take to add, and the five questions we
+> need Acme to answer.

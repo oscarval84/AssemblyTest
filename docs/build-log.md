@@ -17,7 +17,7 @@ the table in `architecture.md` §10.
 | 4 | Notifications | **Done** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. `SmtpMailTransport` delivers wherever a mail host is configured; with none, delivery is off and the screen says so |
 | 5 | VMS integration | **Done** | `VmsConnector` port with a simulated adapter, idempotent pull that starts onboarding with no ops action, transactional integration outbox with backoff and dead-lettering, conflict flagging, and `/ops/integrations` |
 | 6 | Compliance engine | **Done** | Nightly sweep reminds at 30 days, 7 days and the morning after; reopens onboarding on expiry; records every transition. Ops sees the same list at `/ops/expirations` |
-| 7 | AI review | **Partly** | Criteria authored, versioned and checked at review time, with one-click rejection in Acme's own words, and model prefill behind an API key with the classification gate in code. COI field extraction is not built |
+| 7 | AI review | **Done** | Criteria authored, versioned and checked at review time with one-click rejection in Acme's own words; model prefill and COI field extraction both behind an API key, with the classification gate in code |
 | 8 | Deliverables | **Done** | [decision-memo.md](decision-memo.md), [demo-script.md](demo-script.md), root README, seeded demo world with an admin-only reset |
 
 ## Workstream 2b — administration
@@ -166,6 +166,35 @@ illegible scan, the wrong document entirely. The schema enforces the exclusivity
 with neither. One `rejection_label` column resolves to the criterion's own text or the catalog label, so every
 screen and every email reads the same source and neither path can drift into describing a rejection differently.
 
+## Workstream 7 — COI field extraction
+
+The stretch goal, built last because the product is correct without it — and that is exactly what shaped it.
+The supplier types the expiry date at upload, it is required and validated, and the whole compliance engine
+runs on it. What was missing is that **nobody checked it against the document**, and an expiry date wrong by
+two months is the shape of the failure that let a supplier work on a lapsed certificate twice.
+
+So extraction reads the certificate and **disagrees out loud**. It never supplies the date it checks:
+`applyExtractedExpiry` is a separate action a reviewer takes with both dates in front of them, and it records
+both. Replacing a mistake nobody checks with a mistake nobody can see would not have been an improvement.
+
+**The comparisons are Acme's rules, not the model's.** `CertificateFindings` is pure and lives in the domain
+layer: the model reads the document, and this decides whether what it read is a problem — expiry against the
+submission, aggregate against the strictest program the certificate is held to, named insured against the
+supplier record, Acme named as certificate holder, workers' compensation, signature. That split keeps the
+findings stable when a prompt changes and testable without a network.
+
+Two details are load-bearing and both point the same way — a reviewer must be able to trust a value and check
+a gap:
+
+- **Every field is nullable, and the prompt insists on null over a guess.** A cropped scan comes back with
+  holes rather than plausible numbers.
+- **The name comparison is deliberately loose.** "Northwind Staffing Partners" and "Northwind Staffing
+  Partners, LLC" are one company, and an insurer writes whichever is on the policy. Flagging that pair would
+  train a reviewer to click past every name mismatch — including the one that mattered.
+
+Same classification gate as criteria review, same ordering: the disclosure event commits before the document
+is transmitted, and `DOCUMENT_EXPIRY_CORRECTED` carries both dates because compliance runs on that column.
+
 ## Known gaps, all deliberate
 
 - **No malware scanning on upload.** Documented in `architecture.md` §7 as an accepted v1 gap, not an oversight.
@@ -177,9 +206,10 @@ screen and every email reads the same source and neither path can drift into des
 - **The scheduler is not wired.** `/internal/jobs/compliance-sweep` and `/internal/jobs/outbox-drain` exist and
   are authenticated with a shared secret; creating the three Cloud Scheduler jobs is deploy configuration we
   cannot do without Acme's GCP project.
-- **COI field extraction is not built.** The stretch goal, and the one whose absence costs least: expiry dates
-  are typed at upload and validated, so the compliance engine is already correct without it. It is a second
-  implementation behind the same port the criteria prefill uses, with the same classification gate.
+- **Nothing reads a certificate on upload.** Extraction is a deliberate act by a reviewer rather than something
+  that happens when a supplier submits. Running it automatically is a scheduler and a queue away, and it would
+  transmit every certificate to a processor whether or not anyone was going to look at the result — which is a
+  cost and a disclosure decision Acme should make rather than inherit.
 - **Deploy pipeline is not built.** Jib, Firebase Hosting configuration and the GitHub Actions workflow need
   Acme's GCP project and Workload Identity Federation identifiers, which we do not have.
 

@@ -1,8 +1,11 @@
 package com.acme.onboarding.config
 
+import com.acme.onboarding.adapter.ai.AnthropicCoiExtractor
 import com.acme.onboarding.adapter.ai.AnthropicCriteriaEvaluator
 import com.acme.onboarding.application.criteria.CriteriaEvaluator
 import com.acme.onboarding.application.criteria.DisabledCriteriaEvaluator
+import com.acme.onboarding.application.extraction.CoiExtractor
+import com.acme.onboarding.application.extraction.DisabledCoiExtractor
 import com.acme.onboarding.domain.compliance.ComplianceEvaluator
 import com.acme.onboarding.domain.requirement.RequirementResolver
 import org.springframework.context.annotation.Bean
@@ -52,6 +55,17 @@ class DomainBeans {
         properties.ai.apiKey.takeIf { it.isNotBlank() }
             ?.let { AnthropicCriteriaEvaluator(it, properties.ai.model, objectMapper) }
             ?: DisabledCriteriaEvaluator
+
+    /**
+     * Reads the fields off a certificate of insurance, or the honest absence of
+     * one. Same key as the criteria prefill: an environment either has a model
+     * or it does not, and half of one would be a confusing thing to explain.
+     */
+    @Bean
+    fun coiExtractor(properties: AcmeProperties, objectMapper: ObjectMapper): CoiExtractor =
+        properties.ai.apiKey.takeIf { it.isNotBlank() }
+            ?.let { AnthropicCoiExtractor(it, properties.ai.model, objectMapper) }
+            ?: DisabledCoiExtractor
 
     @Bean
     fun passwordEncoder(): PasswordEncoder = BCryptPasswordEncoder()

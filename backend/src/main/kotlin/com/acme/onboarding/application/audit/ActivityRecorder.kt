@@ -147,6 +147,15 @@ object AuditAction {
      */
     const val DOCUMENT_DISCLOSED = "DOCUMENT_DISCLOSED"
 
+    /** What a model read off a certificate, and the disagreements it found. */
+    const val DOCUMENT_FIELDS_EXTRACTED = "DOCUMENT_FIELDS_EXTRACTED"
+
+    /**
+     * A reviewer corrected an expiry date to the one printed on the document.
+     * Compliance runs on this date, so the change carries both values.
+     */
+    const val DOCUMENT_EXPIRY_CORRECTED = "DOCUMENT_EXPIRY_CORRECTED"
+
     const val VMS_UPDATE_SENT = "VMS_UPDATE_SENT"
     const val VMS_CONFLICT_RAISED = "VMS_CONFLICT_RAISED"
 

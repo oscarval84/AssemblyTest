@@ -21,7 +21,8 @@ Assignments pull in from the VMS and outcomes are written back. Every state chan
 you can hand the resulting history to an auditor as a spreadsheet or as a document.
 
 Two things are deliberately not switched on, and both are a credential rather than a build: email
-delivery, and the model that prefills the review checklist. Details below.
+delivery, and the model — which prefills the review checklist and reads a certificate of insurance to
+check what the supplier typed against what the document says. Details below.
 
 ---
 
@@ -74,10 +75,21 @@ you" below.
 
 ### 5. The model advises; a person decides
 
-Where the model is enabled it prefills the criteria checklist — a `PASS`/`FAIL`/`UNCLEAR` per
-criterion with the span of the document it relied on. A `FAIL` never rejects and a `PASS` never
-approves. The audit trail keeps what the model said and what the human decided as two separate
-facts, and every transmission to the processor is recorded as a disclosure event naming the model.
+Where the model is enabled it does two things, and neither of them decides anything.
+
+It **prefills the criteria checklist** — a `PASS`/`FAIL`/`UNCLEAR` per criterion with the span of the
+document it relied on. A `FAIL` never rejects and a `PASS` never approves.
+
+And it **reads a certificate of insurance and disagrees out loud**. Your suppliers type the expiry
+date when they upload, the compliance engine runs on that date, and until now nobody checked it
+against the document. Extraction compares the two, along with coverage limits against what the
+program requires and the named insured against your own record — and when the certificate says
+something else, a reviewer sees both dates and applies the correction in one click. It never
+rewrites that date on its own: replacing a mistake nobody checks with a mistake nobody can see
+would not be an improvement.
+
+The audit trail keeps what the model said and what the human decided as two separate facts, and
+every transmission to the processor is recorded as a disclosure event naming the model.
 
 The honest framing: this saves reading time. It does not save judgement, and the product is
 designed to be correct with it switched off.
@@ -100,7 +112,7 @@ database read per request, which is the right trade for an internal tool of this
 
 | Cut | Why | To add |
 |---|---|---|
-| **AI extraction of certificate fields** | The stretch goal, and the one whose absence costs the least: expiry dates are typed at upload and validated, so the compliance engine is already correct without it. | One adapter behind the existing port, plus the same classification gate criteria review already enforces. Days, not weeks. |
+| **Automatic extraction on upload** | Certificate extraction is built, but a reviewer runs it. Running it on every upload would transmit every certificate to a processor whether or not anyone was going to read the result — a cost and a disclosure decision that is yours, not ours. | A scheduled job over pending submissions. Hours, once you have decided. |
 | **A real e-signature vendor** | Signing produces an executed PDF with the typed name, timestamp, IP, and the hash of the exact template text. That is the artifact an auditor asks for. A vendor adds legal weight, not capability. | A procurement decision first, then an adapter. |
 | **Bulk supplier import** | The VMS pull is the import path that matters, and it is built. A spreadsheet importer would compete with it. | Only if suppliers exist outside the VMS in numbers. |
 | **SSO / SAML** | You said it comes later. The account model is already role-based and the session layer is where it plugs in. | Entra ID federation; roughly a week including provisioning questions. |
@@ -142,8 +154,10 @@ message exactly as a recipient would read it. Nothing is delivered, and the prod
 than marking messages sent that it never sent. Turning it on is four environment variables and an
 SMTP credential on a domain whose SPF and DKIM records name the relay. Any provider works.
 
-**The model that prefills criteria.** The adapter is built and the checklist is filled in by a
-person without it. Turning it on is an API key. The classification gate applies either way.
+**The model.** Both uses of it — the criteria prefill and certificate extraction — are built, and both
+are inert without an API key: the buttons are not offered, a reviewer ticks the checklist, and expiry
+dates are typed and validated at upload as they always were. Turning it on is an API key. The
+classification gate applies either way, and a W-9 is refused in code regardless.
 
 **Scheduled jobs.** The three endpoints exist and are authenticated. Creating the Cloud Scheduler
 jobs needs your GCP project.

@@ -6,15 +6,9 @@ import com.acme.onboarding.application.criteria.ModelVerdict
 import com.anthropic.client.AnthropicClient
 import com.anthropic.client.okhttp.AnthropicOkHttpClient
 import com.anthropic.core.JsonValue
-import com.anthropic.models.messages.Base64ImageSource
-import com.anthropic.models.messages.Base64PdfSource
-import com.anthropic.models.messages.ContentBlockParam
-import com.anthropic.models.messages.DocumentBlockParam
-import com.anthropic.models.messages.ImageBlockParam
 import com.anthropic.models.messages.JsonOutputFormat
 import com.anthropic.models.messages.MessageCreateParams
 import com.anthropic.models.messages.OutputConfig
-import com.anthropic.models.messages.TextBlockParam
 import com.anthropic.models.messages.ThinkingConfigAdaptive
 import org.slf4j.LoggerFactory
 import tools.jackson.databind.ObjectMapper
@@ -82,8 +76,8 @@ class AnthropicCriteriaEvaluator(
             .system(systemPrompt())
             .addUserMessageOfBlockParams(
                 listOf(
-                    documentBlock(request.contentType, encoded),
-                    ContentBlockParam.ofText(TextBlockParam.builder().text(taskPrompt(request)).build()),
+                    AnthropicDocuments.block(request.contentType, encoded),
+                    AnthropicDocuments.text(taskPrompt(request)),
                 ),
             )
             .build()
@@ -94,38 +88,6 @@ class AnthropicCriteriaEvaluator(
             .joinToString("") { it.text() }
 
         return parse(json, request)
-    }
-
-    /**
-     * A PDF is a document block and a scan is an image block.
-     *
-     * Suppliers send both — a national firm's broker emails a generated PDF, and
-     * a two-person agency photographs the certificate on their desk. Uploads are
-     * already restricted to these three types by magic bytes, so an unexpected
-     * one here is a bug rather than user input.
-     */
-    private fun documentBlock(contentType: String, encoded: String): ContentBlockParam = when (contentType) {
-        "application/pdf" -> ContentBlockParam.ofDocument(
-            DocumentBlockParam.builder()
-                .source(Base64PdfSource.builder().data(encoded).build())
-                .build(),
-        )
-
-        else -> ContentBlockParam.ofImage(
-            ImageBlockParam.builder()
-                .source(
-                    Base64ImageSource.builder()
-                        .mediaType(imageMediaType(contentType))
-                        .data(encoded)
-                        .build(),
-                )
-                .build(),
-        )
-    }
-
-    private fun imageMediaType(contentType: String): Base64ImageSource.MediaType = when (contentType) {
-        "image/png" -> Base64ImageSource.MediaType.IMAGE_PNG
-        else -> Base64ImageSource.MediaType.IMAGE_JPEG
     }
 
     private fun systemPrompt(): String =

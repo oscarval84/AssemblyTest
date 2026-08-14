@@ -119,6 +119,9 @@ const actionLabels: Record<string, string> = {
   CRITERIA_UPDATED: 'Acceptance criteria changed',
   CRITERION_JUDGED: 'Criterion checked',
   AUDIT_EXPORTED: 'History exported',
+  DOCUMENT_DISCLOSED: 'Sent to the model',
+  DOCUMENT_FIELDS_EXTRACTED: 'Certificate read',
+  DOCUMENT_EXPIRY_CORRECTED: 'Expiry date corrected',
   DEMO_DATA_RESET: 'Demo data reset',
 }
 

@@ -20,9 +20,10 @@ back. Every state change is an event in an append-only, hash-chained log, and th
 spreadsheet or as a document you can hand to an auditor.
 
 Two capabilities are built and switched off, each waiting on a credential rather than on code:
-**email delivery** (an SMTP host) and **the model that prefills the review checklist** (an API key).
-Both are covered in [docs/local-development.md](docs/local-development.md); the product is designed
-to be correct with either of them off.
+**email delivery** (an SMTP host), and **the model** (an API key), which prefills the review
+checklist and reads a certificate of insurance to check its expiry date and coverage limits against
+what was claimed. Both are covered in [docs/local-development.md](docs/local-development.md), and the
+product is designed to be correct with either of them off.
 
 ## Running it
 

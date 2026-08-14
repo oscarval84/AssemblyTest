@@ -193,6 +193,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{submissionId}/extraction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** What has already been read off this certificate, if anything */
+        get: operations["current_1"];
+        put?: never;
+        /** Read the certificate's fields and compare them with what was claimed */
+        post: operations["extract"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{submissionId}/extraction/expiry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Correct the recorded expiry date to the one printed on the certificate */
+        post: operations["applyExpiry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{submissionId}/criteria/{criterionId}": {
         parameters: {
             query?: never;
@@ -968,6 +1003,42 @@ export interface components {
             supplierName?: string | null;
             programIds: string[];
         };
+        CertificateFinding: {
+            /** @enum {string} */
+            flag: "EXPIRY_MISMATCH" | "EXPIRED_ON_ARRIVAL" | "COVERAGE_BELOW_MINIMUM" | "NAME_MISMATCH" | "HOLDER_NOT_ACME" | "WORKERS_COMPENSATION_MISSING" | "NOT_SIGNED";
+            detail: string;
+        };
+        CoiFields: {
+            insurer?: string | null;
+            policyNumber?: string | null;
+            namedInsured?: string | null;
+            certificateHolder?: string | null;
+            /** Format: int64 */
+            generalLiabilityEachOccurrence?: number | null;
+            /** Format: int64 */
+            generalLiabilityAggregate?: number | null;
+            /** Format: date */
+            effectiveOn?: string | null;
+            /** Format: date */
+            expiresOn?: string | null;
+            workersCompensationPresent?: boolean | null;
+            signed?: boolean | null;
+        };
+        ExtractionView: {
+            /** Format: uuid */
+            submissionId: string;
+            available: boolean;
+            model?: string | null;
+            fields: components["schemas"]["CoiFields"] | null;
+            /** Format: double */
+            confidence?: number | null;
+            findings: components["schemas"]["CertificateFinding"][];
+            /** Format: date */
+            recordedExpiry?: string | null;
+            /** Format: date-time */
+            extractedAt?: string | null;
+            expiryDisagrees: boolean;
+        };
         JudgementBody: {
             verdict: string;
             evidence?: string | null;
@@ -1637,6 +1708,72 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    current_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ExtractionView"];
+                };
+            };
+        };
+    };
+    extract: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ExtractionView"];
+                };
+            };
+        };
+    };
+    applyExpiry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ExtractionView"];
+                };
             };
         };
     };

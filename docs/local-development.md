@@ -124,19 +124,27 @@ Three things to know before pointing it at a real relay:
 To watch messages leave without sending anything to a real person, run a local catcher — Mailpit on
 `localhost:1025` with no auth — and set `SPRING_MAIL_HOST=localhost SPRING_MAIL_PORT=1025 MAIL_TRANSPORT=smtp`.
 
-## Using the model for criteria review
+## Using the model
 
-Criteria review works with no model: a reviewer ticks each criterion by hand, which is the fallback the design
-requires anyway. With a key, the model fills the checklist in first and a person still decides:
+One key switches on both uses of the model. Neither is required: a reviewer ticks each criterion by hand and
+expiry dates are typed at upload and validated, which is the fallback the design requires anyway. With a key,
+the model fills the checklist in first and reads the certificate — and a person still decides:
 
 ```bash
 ANTHROPIC_API_KEY=sk-ant-… ./gradlew bootRun --args='--server.port=8085'
 ```
 
-Without the key, `DisabledCriteriaEvaluator` is the active implementation and the "Ask the model" button is
-not offered. With it, evaluation runs only on Confidential and Internal documents — a W-9 is Restricted and is
-refused by `AnthropicCriteriaEvaluator` before anything is transmitted, which is a code-level gate rather than
-a setting. Every evaluation writes a `DOCUMENT_DISCLOSED` audit event naming the processor and the model.
+Without the key, `DisabledCriteriaEvaluator` and `DisabledCoiExtractor` are the active implementations and
+neither button is offered. With it:
+
+- **Ask the model** prefills the acceptance-criteria checklist with a verdict and a quoted span per criterion.
+- **Read the fields** reads a certificate of insurance and compares it with the expiry date entered on upload,
+  the program's coverage minimum, and the supplier's own record. Correcting the expiry to the certificate's
+  date is a separate click and is recorded with both values.
+
+Both run only on Confidential and Internal documents. A W-9 is Restricted and is refused before anything is
+transmitted — a code-level gate rather than a setting, so no environment variable can turn it on. Every call
+writes a `DOCUMENT_DISCLOSED` audit event naming the processor, the model and the purpose.
 
 ## Inspect the database
 

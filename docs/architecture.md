@@ -528,11 +528,15 @@ Two features, arrived at differently. **Field extraction** was a chosen stretch 
 
 ### Field extraction from certificates of insurance (stretch goal)
 
-**Feature.** When a supplier uploads a certificate of insurance, the backend extracts insurer, policy number, coverage limits and effective/expiry dates, cross-checks them against the profile, and feeds the expiry date straight into the compliance engine. Mismatches surface to ops as review flags — the reviewer sees "coverage limit below program minimum" instead of opening the PDF and comparing by eye. This is what makes the expirations view trustworthy without manual data entry, and it is the failure the client actually got audited on twice.
+**Feature.** A reviewer can have the model read a certificate: insurer, policy number, coverage limits, effective and expiry dates, named insured, certificate holder, workers' compensation, signature. What it reads is compared against the submission, the supplier record, and the strictest program the certificate is held to, and the disagreements surface as findings — the reviewer sees *"the general liability aggregate shows USD 1,000,000; this program requires USD 2,000,000"* instead of opening the PDF and comparing by eye.
 
-**Scope is deliberately limited to the COI in v1.** A W-9 carries a taxpayer identification number — an SSN for sole proprietors. Routing that through a third-party API is a data-governance decision, not an engineering one, and the client told us directly that a past vendor was careless with exactly this class of data. A COI carries company and policy data and no personal identifiers, so it delivers the compliance value at a fraction of the exposure.
+**It checks the expiry date rather than supplying it.** The original design had extraction feed the compliance engine directly. What shipped is stronger: the supplier types the expiry at upload, it is required and validated, and the engine runs on that — extraction's job is to *disagree* when the document says otherwise. Applying the correction is a separate act by a reviewer with both dates in front of them, recorded with both values. A model that silently rewrote the date compliance runs on would have replaced a mistake nobody checks with a mistake nobody can see.
 
-W-9 extraction is **not built**, and the gate that would govern it is. Classification decides what may be sent to an external processor, and that decision is enforced in code — `CriteriaPrefillService` refuses a Restricted document before any transmission, and the checklist reports the model as unavailable for one even where an API key is configured. There is deliberately no configuration flag that could turn it on, because a flag is something somebody eventually turns off. The enabling conditions are written down and unchanged: a data processing agreement with the model vendor, confirmed retention terms for submitted documents, and Acme's own sign-off. The decision memo states the position rather than leaving it implied — this is Acme's call to make with their compliance counsel, not a default we choose for them.
+**The comparisons are Acme's rules, not the model's.** `CertificateFindings` is pure and sits in the domain layer; the adapter reads the document and the domain decides whether what it read is a problem. Two consequences worth stating: the findings stay stable when a prompt changes, and they are tested without a network. The name comparison is deliberately loose — "Northwind Staffing Partners" and "Northwind Staffing Partners, LLC" are one company, and a flag that fires on that pair trains a reviewer to click past every name mismatch, including the one that mattered.
+
+**Scope is deliberately limited to the COI.** A W-9 carries a taxpayer identification number — an SSN for sole proprietors. Routing that through a third-party API is a data-governance decision, not an engineering one, and the client told us directly that a past vendor was careless with exactly this class of data. A COI carries company and policy data and no personal identifiers, so it delivers the compliance value at a fraction of the exposure.
+
+W-9 extraction is **not built**, and the gate that would govern it is. Classification decides what may be sent to an external processor, and that decision is enforced in code — both `CriteriaPrefillService` and `CoiExtractionService` refuse a Restricted document before any transmission, and each screen reports the model as unavailable for one even where an API key is configured. There is deliberately no configuration flag that could turn it on, because a flag is something somebody eventually turns off. The enabling conditions are written down and unchanged: a data processing agreement with the model vendor, confirmed retention terms for submitted documents, and Acme's own sign-off. The decision memo states the position rather than leaving it implied — this is Acme's call to make with their compliance counsel, not a default we choose for them.
 
 ### Criteria-based review (client-requested)
 
@@ -614,18 +618,18 @@ The brief says the evaluators will drive the app themselves, with seeded realist
 | 4 | Notifications | Outbox table, templates, ops-visible log, optional real transport |
 | 5 | **VMS integration** | `VmsConnector` port, simulated adapter, scheduled pull creating suppliers/enrollments idempotently, integration outbox with retry and dead-letter, `/ops/integrations` log, writeback on activation and compliance change |
 | 6 | Compliance engine | Expiry dates, upcoming-expirations view, scheduled sweep, reminder emails |
-| 7 | AI review | Criteria authoring and versioning, reference documents, per-criterion evaluation feeding one-click rejection; COI field extraction feeding expiry dates; disclosure auditing; W-9 path gated off |
+| 7 | AI review | Criteria authoring and versioning, reference documents, per-criterion evaluation feeding one-click rejection; COI field extraction checking expiry dates and coverage; disclosure auditing; W-9 path refused in code |
 | 8 | Deliverables | Decision memo, Loom script, seeded demo world with reset (§9), demo logins for all four roles |
 
 **Status.** This section describes the intended design; what is actually built on any given day lives in
 [build-log.md](build-log.md), which is updated per workstream and is the document to trust when the two
-disagree. Workstreams 0 through 6 and 8 are delivered, and 7 is delivered except for COI field extraction.
+disagree. Every workstream is delivered.
 
 Two capabilities are built and switched off, each waiting on a credential rather than on code: outbox delivery
-(4) needs an SMTP host, and the model that prefills criteria (7) needs an Anthropic API key. The product is
-designed to be correct with either off — the outbox says plainly that nothing is leaving, and a reviewer ticks
-each criterion by hand. COI field extraction (7, stretch) is not started; the W-9 path is not a flag but a
-refusal in code, for the reason §8 gives.
+(4) needs an SMTP host, and the model behind criteria prefill and certificate extraction (7) needs an Anthropic
+API key. The product is designed to be correct with both off — the outbox says plainly that nothing is leaving,
+a reviewer ticks each criterion by hand, and expiry dates are typed and validated at upload whether or not
+anything reads the certificate. The W-9 path is not a flag but a refusal in code, for the reason §8 gives.
 
 Workstreams 0–4 are the required core and ship first. **5 is now core too** — the client called the VMS integration critically important, which promotes it above the stretch goals rather than beside them. 6 is the remaining chosen stretch goal, and 7 is half core (criteria review, from answer 2) and half stretch (field extraction). 8 runs alongside rather than at the end.
 
