@@ -221,6 +221,13 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **A trailing newline on the API key put the key into the logs.** Pasting a secret and pressing Enter
+  before `Ctrl-D` stores it with a `\n`; the SDK then throws `Unexpected char 0x0a in X-Api-Key value`,
+  and that exception **quotes the key in its message**, so logging the throwable wrote a live credential
+  to Cloud Logging in plain text. The key is now trimmed where the adapters are constructed, so the
+  exception cannot occur — a better answer than scrubbing logs, because a log entry cannot be recalled
+  and the only remedy after the fact is rotation. Found by running a real extraction against the deployed
+  service, which is the only place it could have appeared.
 - **An unknown API address answered 500, not 404.** Spring raises `NoResourceFoundException` for a URL no
   controller serves, nothing handled it, and it fell through to the catch-all that apologises for a fault on
   Acme's side. Two costs: a supplier following a stale link was told Acme was broken, and real 500s sat in the

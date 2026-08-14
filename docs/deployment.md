@@ -174,6 +174,15 @@ gcloud secrets create anthropic-api-key --replication-policy=automatic
 gcloud secrets versions add anthropic-api-key --data-file=-
 ```
 
+**Paste, then `Ctrl-D` — do not press Enter first.** A trailing newline is stored as part of the
+secret, and a key ending in `\n` cannot go into an HTTP header: the SDK throws
+`Unexpected char 0x0a in X-Api-Key value`. The application trims the key precisely so this cannot
+bite, but the newline is still stored, and the same mistake in a secret nothing trims will.
+
+The reason the trim exists is worth knowing on its own: **that exception quotes the key in its
+message**, so anything logging the throwable writes a live credential into the log store in plain
+text. If it has already happened, rotating the key is the only fix — a log entry cannot be recalled.
+
 ## 7. Service account and deploy
 
 The service runs as its own account with only the roles it needs — never the default compute

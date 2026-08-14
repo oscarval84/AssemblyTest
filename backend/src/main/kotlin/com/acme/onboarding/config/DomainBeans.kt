@@ -52,7 +52,7 @@ class DomainBeans {
      */
     @Bean
     fun criteriaEvaluator(properties: AcmeProperties, objectMapper: ObjectMapper): CriteriaEvaluator =
-        properties.ai.apiKey.takeIf { it.isNotBlank() }
+        properties.ai.trimmedApiKey()
             ?.let { AnthropicCriteriaEvaluator(it, properties.ai.model, objectMapper) }
             ?: DisabledCriteriaEvaluator
 
@@ -66,7 +66,7 @@ class DomainBeans {
      */
     @Bean
     fun documentExtractor(properties: AcmeProperties, objectMapper: ObjectMapper): DocumentExtractor =
-        properties.ai.apiKey.takeIf { it.isNotBlank() }
+        properties.ai.trimmedApiKey()
             ?.let { AnthropicDocumentExtractor(it, properties.ai.model, objectMapper) }
             ?: DisabledDocumentExtractor
 

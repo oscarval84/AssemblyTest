@@ -93,7 +93,23 @@ data class AcmeProperties(
          * no value of this flag can cause one to be kept.
          */
         val w9ExtractionEnabled: Boolean,
-    )
+    ) {
+        /**
+         * The key with surrounding whitespace removed, or null if there is none.
+         *
+         * The trim is not tidiness. A key is delivered by a secret store, and a
+         * secret whose value ends in a newline — which is what `gcloud secrets
+         * versions add --data-file=-` stores if you press Enter before Ctrl-D —
+         * reaches the SDK, goes into an HTTP header, and throws
+         * `Unexpected char 0x0a in X-Api-Key value`.
+         *
+         * **That exception carries the key in its message**, and anything logging
+         * the throwable puts a live credential in the log store in plain text.
+         * Trimming here means that failure cannot happen, which is a better
+         * answer than scrubbing logs after the fact.
+         */
+        fun trimmedApiKey(): String? = apiKey.trim().takeIf { it.isNotBlank() }
+    }
 
     data class Security(
         val fieldEncryptionKey: String,
