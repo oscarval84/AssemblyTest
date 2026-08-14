@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient, type UseQueryResult } from '@tanstack/react-query'
 import {
   api,
+  downloadAuditExport,
   RequestFailed,
   unwrap,
   uploadDocument,
   type ActivityRow,
   type AgreementPreview,
+  type AuditExportFilter,
+  type ChainVerification,
   type ChecklistView,
   type DemoInfo,
   type InvitationPreview,
@@ -51,6 +54,7 @@ export const keys = {
   integrations: ['integration-messages'] as const,
   criteria: (submissionId: string) => ['criteria', submissionId] as const,
   accessHistory: (id: string) => ['access-history', id] as const,
+  chainVerification: (chainKey: string) => ['chain-verification', chainKey] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
 
@@ -411,6 +415,45 @@ export function useRetryIntegrationMessage() {
       unwrap(await api.POST('/api/integrations/messages/{id}/retry', { params: { path: { id } } })),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: keys.integrations })
+    },
+  })
+}
+
+/**
+ * Whether one supplier's chain still walks cleanly.
+ *
+ * Shown next to the export rather than on an admin screen, because the person
+ * handing a history over is the one who needs to be able to say it is whole.
+ */
+export function useChainVerification(chainKey: string | undefined): UseQueryResult<ChainVerification> {
+  return useQuery({
+    queryKey: keys.chainVerification(chainKey ?? ''),
+    enabled: Boolean(chainKey),
+    queryFn: async () =>
+      unwrap(
+        await api.GET('/api/audit/chains/{chainKey}/verification', {
+          params: { path: { chainKey: chainKey! } },
+        }),
+      ),
+  })
+}
+
+/**
+ * The auditor export.
+ *
+ * A mutation rather than a query even though it reads: it runs when a person
+ * asks for it, it is not cached, and it writes an `AUDIT_EXPORTED` event — so
+ * the timeline of the supplier just exported is now one event out of date.
+ */
+export function useAuditExport() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (filter: AuditExportFilter) => downloadAuditExport(filter),
+    onSuccess: (_rowCount, filter) => {
+      if (filter.supplierId) {
+        void queryClient.invalidateQueries({ queryKey: keys.activity(filter.supplierId) })
+        void queryClient.invalidateQueries({ queryKey: keys.chainVerification(filter.supplierId) })
+      }
     },
   })
 }

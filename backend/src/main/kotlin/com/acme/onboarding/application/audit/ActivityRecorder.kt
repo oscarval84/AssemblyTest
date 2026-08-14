@@ -135,8 +135,11 @@ object AuditAction {
 
     /**
      * Data leaving the system is an audit event regardless of where it goes —
-     * the same treatment an external AI processor gets.
+     * the same treatment an external AI processor gets. An export of the audit
+     * log is no exception, and it is recorded in the log it exports.
      */
+    const val AUDIT_EXPORTED = "AUDIT_EXPORTED"
+
     const val VMS_UPDATE_SENT = "VMS_UPDATE_SENT"
     const val VMS_CONFLICT_RAISED = "VMS_CONFLICT_RAISED"
 

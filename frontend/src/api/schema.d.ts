@@ -755,6 +755,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/audit/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The activity history as a CSV, filtered by supplier, program and date range */
+        get: operations["export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit/chains/{chainKey}/verification": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Walk one chain and report the first break, if there is one */
+        get: operations["verify"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/users": {
         parameters: {
             query?: never;
@@ -1225,6 +1259,15 @@ export interface components {
             /** Format: date */
             expiresOn: string;
             programNames: string[];
+        };
+        ChainVerificationView: {
+            chainKey: string;
+            /** Format: int32 */
+            eventCount: number;
+            intact: boolean;
+            /** Format: int64 */
+            brokenAtSequence?: number | null;
+            reason?: string | null;
         };
         StaffUserView: {
             /** Format: uuid */
@@ -2303,6 +2346,53 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["SessionDescription"];
+                };
+            };
+        };
+    };
+    export: {
+        parameters: {
+            query?: {
+                supplierId?: string;
+                programId?: string;
+                from?: string;
+                to?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+        };
+    };
+    verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                chainKey: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["ChainVerificationView"];
                 };
             };
         };

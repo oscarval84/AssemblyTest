@@ -69,16 +69,6 @@ application_default_credentials.json
 .postgres-data/
 
 # ---------------------------------------------------------------------------
-# Project documentation
-# ---------------------------------------------------------------------------
-#
-# The architecture document is internal working material and is kept out of the
-# repository by choice. Everything else under docs/ ships — in particular the
-# decision memo, which the brief names as a required deliverable.
-
-docs/architecture.md
-
-# ---------------------------------------------------------------------------
 # Operating system
 # ---------------------------------------------------------------------------
 
@@ -188,3 +178,7 @@ firestore-debug.log*
 #       credentials are local-only throwaways.
 #   backend/src/main/resources/db/migration/ — the schema is a reviewable
 #       artifact and the audit story depends on its history being visible.
+#   docs/architecture.md               — every other committed document links to
+#       it, and CLAUDE.md sends the reader there for the rules a section number
+#       is not enough to convey. A repository whose own references dangle is
+#       worse than one that shows its working.

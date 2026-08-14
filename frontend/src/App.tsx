@@ -28,6 +28,7 @@ const OpsOutbox = lazy(() => import('./features/ops/OutboxPage'))
 const OpsStaffAdmin = lazy(() => import('./features/ops/StaffAdminPage'))
 const OpsExpirations = lazy(() => import('./features/ops/ExpirationsPage'))
 const OpsIntegrations = lazy(() => import('./features/ops/IntegrationsPage'))
+const OpsAuditExport = lazy(() => import('./features/ops/AuditExportPage'))
 
 export default function App() {
   return (
@@ -70,6 +71,9 @@ export default function App() {
                 { label: 'Expiring', to: '/ops/expirations', roles: ['OPS', 'ADMIN'] },
                 { label: 'Notifications', to: '/ops/outbox', roles: ['OPS', 'ADMIN'] },
                 { label: 'VMS', to: '/ops/integrations', roles: ['OPS', 'ADMIN'] },
+                // No role restriction: a program manager exports their own
+                // programs, which is the read-only visibility they are for.
+                { label: 'Audit export', to: '/ops/audit' },
                 { label: 'Staff access', to: '/ops/admin/users', roles: ['ADMIN'] },
               ]}
             />
@@ -80,6 +84,7 @@ export default function App() {
           <Route path="/ops/expirations" element={<OpsExpirations />} />
           <Route path="/ops/outbox" element={<OpsOutbox />} />
           <Route path="/ops/integrations" element={<OpsIntegrations />} />
+          <Route path="/ops/audit" element={<OpsAuditExport />} />
           <Route path="/ops/admin/users" element={<OpsStaffAdmin />} />
           <Route path="/ops/suppliers/:id" element={<OpsSupplierDetail />} />
         </Route>

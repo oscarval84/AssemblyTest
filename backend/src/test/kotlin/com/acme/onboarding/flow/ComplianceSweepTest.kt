@@ -12,6 +12,7 @@ import com.acme.onboarding.application.supplier.NewSupplierRequest
 import com.acme.onboarding.application.supplier.ProfileUpdateRequest
 import com.acme.onboarding.application.supplier.SupplierService
 import com.acme.onboarding.application.support.hash
+import com.acme.onboarding.domain.compliance.ComplianceEvaluator
 import com.acme.onboarding.domain.onboarding.OnboardingStage
 import com.acme.onboarding.domain.user.Actor
 import com.acme.onboarding.domain.user.Role
@@ -37,6 +38,12 @@ import kotlin.test.assertTrue
  * hardcoded, so the suite does not start failing on a particular calendar day —
  * the failure mode these tests are meant to catch is a supplier notified a day
  * late, and a test that is itself date-sensitive cannot be trusted to catch it.
+ *
+ * "Today" means [ComplianceEvaluator.today] — Acme's business time zone, the
+ * same function the sweep itself resolves dates with. Asking the machine
+ * instead made this file fail for six hours a day: run from a laptop west of
+ * New York after 18:00, the application was already on the next business date
+ * and every day count came out one short.
  */
 @Testcontainers
 @SpringBootTest(properties = ["acme.demo.seed-on-startup=false"])
@@ -53,6 +60,7 @@ class ComplianceSweepTest {
     }
 
     @Autowired private lateinit var sweep: ComplianceSweepService
+    @Autowired private lateinit var evaluator: ComplianceEvaluator
     @Autowired private lateinit var suppliers: SupplierService
     @Autowired private lateinit var documents: DocumentService
     @Autowired private lateinit var review: DocumentReviewService
@@ -87,7 +95,7 @@ class ComplianceSweepTest {
 
         // Bring the expiry forward rather than moving the clock: the same
         // arithmetic, and it exercises the real query.
-        moveExpiry(supplierId, LocalDate.now().plusDays(5))
+        moveExpiry(supplierId, today().plusDays(5))
         val urgent = sweep.sweep()
 
         assertEquals(1, urgent.remindersSent)
@@ -108,7 +116,7 @@ class ComplianceSweepTest {
         val supplierId = approvedSupplierWithCertificate(ops, expiresIn = 20)
         assertEquals(OnboardingStage.APPROVED, suppliers.detail(ops, supplierId).profile.stage)
 
-        moveExpiry(supplierId, LocalDate.now().minusDays(1))
+        moveExpiry(supplierId, today().minusDays(1))
         val result = sweep.sweep()
 
         assertEquals(1, result.suppliersReopened)
@@ -161,8 +169,8 @@ class ComplianceSweepTest {
                 originalFilename = "renewed.pdf",
                 declaredContentType = "application/pdf",
                 bytes = PDF,
-                issuedOn = LocalDate.now(),
-                expiresOn = LocalDate.now().plusDays(10),
+                issuedOn = today(),
+                expiresOn = today().plusDays(10),
             ),
         )
         review.approve(reviewer, replacement)
@@ -175,6 +183,9 @@ class ComplianceSweepTest {
     // -- helpers --------------------------------------------------------------
 
     private fun unique() = UUID.randomUUID().toString().take(8)
+
+    /** Today as the application resolves it, not as this machine happens to. */
+    private fun today(): LocalDate = evaluator.today()
 
     private fun staffActor(role: Role): Actor {
         val email = "${role.name.lowercase()}-${unique()}@acme-msp.example"
@@ -250,8 +261,8 @@ class ComplianceSweepTest {
                 originalFilename = "coi.pdf",
                 declaredContentType = "application/pdf",
                 bytes = PDF,
-                issuedOn = LocalDate.now().minusYears(1),
-                expiresOn = LocalDate.now().plusDays(expiresIn),
+                issuedOn = today().minusYears(1),
+                expiresOn = today().plusDays(expiresIn),
             ),
         )
         review.approve(reviewer, submissionId)

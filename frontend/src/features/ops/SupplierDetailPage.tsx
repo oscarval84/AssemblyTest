@@ -42,7 +42,9 @@ import {
  * every document, and the activity history behind all of it.
  *
  * The timeline is the feature Dana asked for by name — the history she hands an
- * auditor — so it sits on the record rather than behind an export button.
+ * auditor — so it sits on the record rather than only behind an export button.
+ * The export at `/ops/audit` is the same events, for the half of that sentence
+ * where the history has to leave the building.
  */
 export default function SupplierDetailPage() {
   const { id } = useParams()
@@ -348,6 +350,15 @@ export default function SupplierDetailPage() {
                   description="Every state change lands here, with who made it and when."
                 />
               )}
+
+              <Button
+                size="small"
+                component={RouterLink}
+                to={`/ops/audit?supplierId=${profile.id}`}
+                sx={{ mt: 2 }}
+              >
+                Export this history
+              </Button>
             </CardContent>
           </Card>
 

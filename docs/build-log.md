@@ -11,7 +11,7 @@ the table in `architecture.md` §10.
 | --- | --- | --- | --- |
 | 0 | Foundation | **Done** | Session auth, account lifecycle, hash-chained audit log, transactional outbox, document storage port, demo seeding with an admin-only reset |
 | 1 | Supplier portal | **Done** | Invite → accept → company profile → per-program checklist → upload → signature producing an executed PDF |
-| 2 | Ops pipeline | **Partly** | Pipeline grouped by who is blocking, supplier record with compliance per program and the activity timeline. The auditor export is not built |
+| 2 | Ops pipeline | **Done** | Pipeline grouped by who is blocking, supplier record with compliance per program, the activity timeline, and the auditor export at `/ops/audit` |
 | 2b | Administration | **Done** | See below |
 | 3 | Documents & review | **Done** | Review queue ordered by wait time, approve/reject with a reason and note, segregation of duties enforced |
 | 4 | Notifications | **Partly** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. No real transport yet — the `MailTransport` port has one implementation and it delivers nothing, on purpose |
@@ -94,6 +94,49 @@ implementation and no API key configured, so today a human ticks each criterion.
 it is also the fallback the design requires: a `FAIL` never auto-rejects and a `PASS` never auto-approves, so
 the model only ever saves reading time. Adding it is one adapter plus a key, and the classification gate
 (Confidential and Internal only, never a W-9) has to be enforced in that adapter before it sends anything.
+
+## Workstream 2 — the auditor export
+
+Dana asked for this by name: *"a history I can hand to an auditor."* The timeline on a supplier's record
+answered half of it. This is the other half — the same events, filtered by supplier, program and date range,
+as a CSV at `/ops/audit`, plus a link from each supplier's record that arrives pre-filtered to that company.
+
+**It is an audit artifact, so it is built like one.**
+
+- **Every row carries its chain key, its position and its hash**, so the file can be checked against the system
+  it came from rather than believed. Next to the filters, choosing a supplier walks that chain and reports
+  whether it is unbroken and how many events it holds. A history is only evidence if the person handing it
+  over can say it is whole, and that claim should not need an engineer.
+- **Taking a copy is itself an event.** `AUDIT_EXPORTED` records the filter and the row count, in the exported
+  supplier's own chain when the export names one and in the system chain otherwise. Data leaving the system is
+  recorded wherever it goes, and an export of the audit log is the case that most needs it.
+- **Refusing beats truncating.** Past 50,000 events the export declines and says how to narrow it. An audit
+  artifact that silently stops halfway is the one failure mode this feature cannot have.
+- **A company name is not trusted content.** A legal name beginning `=` is a formula to a spreadsheet, and
+  these files are opened in Excel by definition; `Csv` neutralises it, writes CRLF, and prefixes a BOM so
+  accented names survive the trip.
+- **Dates are calendar dates in Acme's time zone**, converted to instants at the edge, both ends inclusive.
+  "To the 14th" means through the end of the 14th, which is the only reading the person filling in the form
+  has in mind.
+
+A program manager gets the same screen, scoped to their programs, and the copy says so rather than promising
+"every supplier" and quietly delivering fewer. Asking for a supplier outside their programs is refused rather
+than answered with an empty file — "no events" and "not yours to read" must not look alike.
+
+**PDF is not built**, and that was already the plan: `architecture.md` §11 named CSV-only as one of the three
+cuts taken on day one.
+
+## A test that failed for six hours a day
+
+`ComplianceSweepTest` resolved "today" with the machine's `LocalDate.now()` while the application resolves it
+in Acme's business time zone. Run from a laptop west of New York after 18:00, the two disagree by a day and
+the reminder arithmetic came out one short — the same off-by-one the whole compliance engine exists to
+prevent, sitting inside the test written to catch it. It now asks `ComplianceEvaluator.today()`, which is the
+function the sweep itself uses.
+
+`ChainVerifier` also had no test for the case that matters: a verifier that always answered "intact" would
+have passed the entire suite. There are now four, including the careful attack — rewriting an event *and*
+recomputing its hash, which moves the break to its successor rather than hiding it.
 
 ## Known gaps, all deliberate
 

@@ -36,6 +36,7 @@ export type ExpiringDocument = Schemas['ExpiringDocument']
 export type IntegrationMessage = Schemas['IntegrationMessageRecord']
 export type CriteriaChecklist = Schemas['CriteriaChecklist']
 export type CriterionVerdict = Schemas['CriterionVerdict']
+export type ChainVerification = Schemas['ChainVerificationView']
 
 export type RequirementState = ChecklistEntry['state']
 export type Role = Session['role']
@@ -110,6 +111,68 @@ export function unwrap<T>(result: { data?: T; error?: unknown; response: Respons
     )
   }
   return result.data as T
+}
+
+/** The auditor export's filter, exactly as the screen offers it. */
+export interface AuditExportFilter {
+  supplierId?: string | null
+  programId?: string | null
+  /** Calendar dates, `2026-08-13`, both ends inclusive. */
+  from?: string | null
+  to?: string | null
+}
+
+export function auditExportUrl(filter: AuditExportFilter): string {
+  const query = new URLSearchParams()
+  if (filter.supplierId) query.set('supplierId', filter.supplierId)
+  if (filter.programId) query.set('programId', filter.programId)
+  if (filter.from) query.set('from', filter.from)
+  if (filter.to) query.set('to', filter.to)
+
+  const search = query.toString()
+  return `/api/audit/export.csv${search ? `?${search}` : ''}`
+}
+
+/**
+ * Fetches the export and hands the file to the browser.
+ *
+ * A plain download link would be less code, and it was the first version. It
+ * fails in the one case that matters: when the server refuses — a range too
+ * wide, a program the caller may not read — a link saves the refusal *as the
+ * file*, and the person ends up with `acme-audit-….csv` containing an error
+ * they will not open until they have already sent it on. Reading the response
+ * first means the message reaches the screen instead.
+ */
+export async function downloadAuditExport(filter: AuditExportFilter): Promise<number> {
+  const response = await fetch(auditExportUrl(filter), { credentials: 'include' })
+
+  if (!response.ok) {
+    const error = (await response.json().catch(() => undefined)) as ApiError | undefined
+    throw new RequestFailed(
+      response.status,
+      error?.message ?? 'We could not build that export. Try a narrower range.',
+      error?.code,
+    )
+  }
+
+  // The server names the file after what is in it; keep that name rather than
+  // inventing one here, so two exports never collide in a downloads folder.
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const filename = /filename="?([^";]+)"?/.exec(disposition)?.[1] ?? 'acme-audit-export.csv'
+  const rowCount = Number(response.headers.get('X-Audit-Row-Count') ?? '0')
+
+  const objectUrl = URL.createObjectURL(await response.blob())
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = filename
+  link.click()
+
+  // Released on the next tick rather than the lifetime of the tab: the blob is
+  // a copy of the audit log. Not synchronously — some browsers have not started
+  // reading it by the time click() returns, and revoking cancels the download.
+  setTimeout(() => URL.revokeObjectURL(objectUrl), 0)
+
+  return rowCount
 }
 
 /**

@@ -112,6 +112,13 @@ const actionLabels: Record<string, string> = {
   DOCUMENT_REJECTED: 'Document rejected',
   DOCUMENT_SIGNED: 'Agreement signed',
   DOCUMENT_ACCESSED: 'Document opened',
+  DOCUMENT_EXPIRING_SOON: 'Expiry approaching',
+  DOCUMENT_EXPIRED: 'Document expired',
+  VMS_UPDATE_SENT: 'Sent to the VMS',
+  VMS_CONFLICT_RAISED: 'Conflict with the VMS',
+  CRITERIA_UPDATED: 'Acceptance criteria changed',
+  CRITERION_JUDGED: 'Criterion checked',
+  AUDIT_EXPORTED: 'History exported',
   DEMO_DATA_RESET: 'Demo data reset',
 }
 
