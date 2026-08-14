@@ -12,7 +12,13 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { useState } from 'react'
 import { RequestFailed } from '../../api/client'
-import { documentDownloadUrl, useRejectionReasons, useReviewDecision } from '../../api/queries'
+import {
+  documentDownloadUrl,
+  rejectionNoteFor,
+  useRejectionReasons,
+  useReviewDecision,
+} from '../../api/queries'
+import CriteriaChecklist from './CriteriaChecklist'
 import { Field } from '../../components/common'
 import { formatDate, formatDateTime, formatFileSize } from '../../lib/format'
 
@@ -124,6 +130,18 @@ export default function ReviewDialog({
               <Field label="Expires">{target.expiresOn ? formatDate(target.expiresOn) : 'Does not expire'}</Field>
             </Box>
 
+            {mode === 'decide' ? (
+              <CriteriaChecklist
+                submissionId={target.submissionId}
+                onRejectWith={async (criterionId) => {
+                  // The criterion's own wording, plus what the document showed.
+                  setNote(await rejectionNoteFor(target.submissionId, criterionId))
+                  setReasonCode('INSUFFICIENT_COVERAGE')
+                  setMode('reject')
+                }}
+              />
+            ) : null}
+
             {mode === 'reject' ? (
               <>
                 <TextField
@@ -154,8 +172,9 @@ export default function ReviewDialog({
               </>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                Open the file, then accept it or hand it back. Approving the last outstanding
-                document completes this supplier's onboarding and activates their programs.
+                Open the file, work down the criteria, then accept it or hand it back. Approving the
+                last outstanding document completes this supplier's onboarding and activates their
+                programs.
               </Typography>
             )}
           </Stack>

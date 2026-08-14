@@ -140,5 +140,12 @@ object AuditAction {
     const val VMS_UPDATE_SENT = "VMS_UPDATE_SENT"
     const val VMS_CONFLICT_RAISED = "VMS_CONFLICT_RAISED"
 
+    /**
+     * Criteria are versioned and every evaluation records the version it judged
+     * against, so both the authoring and the judgement are events.
+     */
+    const val CRITERIA_UPDATED = "CRITERIA_UPDATED"
+    const val CRITERION_JUDGED = "CRITERION_JUDGED"
+
     const val DEMO_DATA_RESET = "DEMO_DATA_RESET"
 }

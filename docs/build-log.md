@@ -17,7 +17,7 @@ the table in `architecture.md` §10.
 | 4 | Notifications | **Partly** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. No real transport yet — the `MailTransport` port has one implementation and it delivers nothing, on purpose |
 | 5 | VMS integration | **Done** | `VmsConnector` port with a simulated adapter, idempotent pull that starts onboarding with no ops action, transactional integration outbox with backoff and dead-lettering, conflict flagging, and `/ops/integrations` |
 | 6 | Compliance engine | **Done** | Nightly sweep reminds at 30 days, 7 days and the morning after; reopens onboarding on expiry; records every transition. Ops sees the same list at `/ops/expirations` |
-| 7 | AI review | Not started | |
+| 7 | AI review | **Partly** | Criteria authored, versioned and checked at review time, with one-click rejection in Acme's own words. The model prefill is a port with no implementation — see below |
 | 8 | Deliverables | Not started | Decision memo and demo script |
 
 ## Workstream 2b — administration
@@ -71,6 +71,29 @@ kept and a flag is raised. One of them is wrong and a human decides which.
 **This is a working integration against a simulated VMS, not a proven integration with a vendor.** What it
 demonstrates is the contract, the automation and the reliability machinery; a real connector is a second
 implementation of the same port plus credentials and a field map.
+
+## Workstream 7 — criteria-based review
+
+Asked which three or four reasons his team rejects documents for, the client answered a better question: let
+Acme input the acceptance criteria, and check submissions against those. A seeded catalog encodes what we
+guessed on the day we guessed it; authored criteria encode what Acme actually requires, per program, with no
+deploy.
+
+Criteria are **versioned as a set**: editing retires the old rows and writes new ones, and every verdict stores
+the text it judged against. After the criteria change in June, "what was this document held to in March" still
+has an answer.
+
+A failed criterion becomes the rejection, in Acme's own words plus what the document showed — *"the general
+liability aggregate shows USD 1,000,000; this program requires USD 2,000,000"* rather than *"rejected —
+incorrect information"*. That is the difference between one resubmission and three, and three rounds of email
+is where the 3–6 week cycle time actually goes.
+
+**What is not built: the model prefill.** The port and the storage are there — every verdict records whether a
+model or a person decided it, along with the model name and confidence — but there is no Anthropic
+implementation and no API key configured, so today a human ticks each criterion. That is the honest state, and
+it is also the fallback the design requires: a `FAIL` never auto-rejects and a `PASS` never auto-approves, so
+the model only ever saves reading time. Adding it is one adapter plus a key, and the classification gate
+(Confidential and Internal only, never a W-9) has to be enforced in that adapter before it sends anything.
 
 ## Known gaps, all deliberate
 

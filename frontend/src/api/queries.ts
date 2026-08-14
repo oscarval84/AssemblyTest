@@ -9,6 +9,7 @@ import {
   type ChecklistView,
   type DemoInfo,
   type InvitationPreview,
+  type CriteriaChecklist,
   type ExpiringDocument,
   type IntegrationMessage,
   type OutboxView,
@@ -48,6 +49,7 @@ export const keys = {
   staff: ['staff-users'] as const,
   expirations: ['expirations'] as const,
   integrations: ['integration-messages'] as const,
+  criteria: (submissionId: string) => ['criteria', submissionId] as const,
   accessHistory: (id: string) => ['access-history', id] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
@@ -349,6 +351,48 @@ export function useExpirations(withinDays = 60): UseQueryResult<ExpiringDocument
     queryFn: async () =>
       unwrap(await api.GET('/api/compliance/expirations', { params: { query: { withinDays } } })),
   })
+}
+
+export function useCriteriaChecklist(submissionId: string, enabled = true): UseQueryResult<CriteriaChecklist> {
+  return useQuery({
+    queryKey: keys.criteria(submissionId),
+    enabled,
+    queryFn: async () =>
+      unwrap(await api.GET('/api/documents/{submissionId}/criteria', {
+        params: { path: { submissionId } },
+      })),
+  })
+}
+
+/**
+ * A reviewer's verdict on one criterion.
+ *
+ * Advisory in the strict sense: recording a FAIL does not reject the document.
+ * It makes the rejection *specific* if the reviewer goes on to click reject.
+ */
+export function useJudgeCriterion(submissionId: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (input: { criterionId: string; verdict: string; evidence?: string | null }) =>
+      unwrap(
+        await api.POST('/api/documents/{submissionId}/criteria/{criterionId}', {
+          params: { path: { submissionId, criterionId: input.criterionId } },
+          body: { verdict: input.verdict, evidence: input.evidence ?? null },
+        }),
+      ),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.criteria(submissionId) })
+    },
+  })
+}
+
+export async function rejectionNoteFor(submissionId: string, criterionId: string): Promise<string> {
+  const result = unwrap(
+    await api.GET('/api/documents/{submissionId}/criteria/{criterionId}/rejection-note', {
+      params: { path: { submissionId, criterionId } },
+    }),
+  )
+  return result.note ?? ''
 }
 
 export function useIntegrationMessages(): UseQueryResult<IntegrationMessage[]> {

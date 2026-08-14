@@ -4,6 +4,24 @@
  */
 
 export interface paths {
+    "/api/requirements/{requirementId}/criteria": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The criteria currently in force for a requirement */
+        get: operations["current"];
+        /** Replace a requirement's criteria, producing a new version */
+        put: operations["author"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/jobs/vms-sync": {
         parameters: {
             query?: never;
@@ -169,6 +187,23 @@ export interface paths {
         put?: never;
         /** Put a failed or dead-lettered push back in the queue */
         post: operations["retry"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{submissionId}/criteria/{criterionId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a reviewer's verdict on one criterion */
+        post: operations["judge"];
         delete?: never;
         options?: never;
         head?: never;
@@ -567,6 +602,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/documents/{submissionId}/criteria": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The criteria checklist for one submission, with any verdicts so far */
+        get: operations["checklist_1"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/documents/{submissionId}/criteria/{criterionId}/rejection-note": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The rejection wording a failed criterion produces */
+        get: operations["rejectionNote"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/documents/{id}/download": {
         parameters: {
             query?: never;
@@ -724,6 +793,9 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CriteriaBody: {
+            criteria: string[];
+        };
         DrainResult: {
             transport: string;
             /** Format: int32 */
@@ -827,6 +899,10 @@ export interface components {
             supplierId?: string | null;
             supplierName?: string | null;
             programIds: string[];
+        };
+        JudgementBody: {
+            verdict: string;
+            evidence?: string | null;
         };
         RejectBody: {
             reasonCode: string;
@@ -993,6 +1069,17 @@ export interface components {
             /** Format: date-time */
             occurredAt: string;
         };
+        AcceptanceCriterionRecord: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            programRequirementId: string;
+            /** Format: int32 */
+            version: number;
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+        };
         ProgramRecord: {
             /** Format: uuid */
             id: string;
@@ -1053,6 +1140,32 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             processedAt?: string | null;
+        };
+        CriteriaChecklist: {
+            /** Format: uuid */
+            submissionId: string;
+            documentTypeName: string;
+            programName?: string | null;
+            /** Format: int32 */
+            criteriaVersion: number;
+            criteria: components["schemas"]["CriterionVerdict"][];
+            empty: boolean;
+            failed: components["schemas"]["CriterionVerdict"][];
+        };
+        CriterionVerdict: {
+            /** Format: uuid */
+            criterionId: string;
+            /** Format: int32 */
+            ordinal: number;
+            text: string;
+            /** Format: int32 */
+            criteriaVersion: number;
+            verdict?: string | null;
+            evidence?: string | null;
+            /** Format: double */
+            confidence?: number | null;
+            source?: string | null;
+            decidedByName?: string | null;
         };
         ReviewQueueItem: {
             /** Format: uuid */
@@ -1137,6 +1250,56 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    current: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requirementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["AcceptanceCriterionRecord"][];
+                };
+            };
+        };
+    };
+    author: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                requirementId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CriteriaBody"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: number;
+                    };
+                };
+            };
+        };
+    };
     vmsSync: {
         parameters: {
             query?: never;
@@ -1385,6 +1548,31 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    judge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+                criterionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["JudgementBody"];
+            };
+        };
         responses: {
             /** @description No Content */
             204: {
@@ -1921,6 +2109,53 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["IntegrationMessageRecord"][];
+                };
+            };
+        };
+    };
+    checklist_1: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["CriteriaChecklist"];
+                };
+            };
+        };
+    };
+    rejectionNote: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                submissionId: string;
+                criterionId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: string;
+                    };
                 };
             };
         };
