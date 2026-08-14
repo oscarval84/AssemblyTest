@@ -15,7 +15,7 @@ the table in `architecture.md` §10.
 | 2b | Administration | **Done** | See below |
 | 3 | Documents & review | **Done** | Review queue ordered by wait time, approve/reject with a reason and note, segregation of duties enforced |
 | 4 | Notifications | **Partly** | Outbox written transactionally, inspectable at `/ops/outbox`, drained by a scheduled job. No real transport yet — the `MailTransport` port has one implementation and it delivers nothing, on purpose |
-| 5 | VMS integration | Not started | |
+| 5 | VMS integration | **Done** | `VmsConnector` port with a simulated adapter, idempotent pull that starts onboarding with no ops action, transactional integration outbox with backoff and dead-lettering, conflict flagging, and `/ops/integrations` |
 | 6 | Compliance engine | **Done** | Nightly sweep reminds at 30 days, 7 days and the morning after; reopens onboarding on expiry; records every transition. Ops sees the same list at `/ops/expirations` |
 | 7 | AI review | Not started | |
 | 8 | Deliverables | Not started | Decision memo and demo script |
@@ -54,6 +54,23 @@ the client also now returns a new `Request` from its middleware rather than
 mutating headers in place. It went unnoticed until now because the earlier flows
 were driven through the API in tests, where each call carries a freshly read
 token.
+
+## Workstream 5 — VMS integration
+
+Inbound, a scheduled pull turns assignments into onboarding that has already started: Marcus finds the supplier
+in his pipeline, at the right stage, with the right checklist. Outbound, activation and compliance changes are
+queued in the same transaction as the state change and pushed with exponential backoff, dead-lettering after
+six attempts rather than looping quietly.
+
+**Idempotency is the whole game.** Every operation keys on the external identifier through `vms_link`, so
+replaying yesterday's sync changes nothing — and re-invitation in particular never happens twice.
+
+**Neither system wins a conflict.** When the VMS's legal name contradicts the approved W-9, both values are
+kept and a flag is raised. One of them is wrong and a human decides which.
+
+**This is a working integration against a simulated VMS, not a proven integration with a vendor.** What it
+demonstrates is the contract, the automation and the reliability machinery; a real connector is a second
+implementation of the same port plus credentials and a field map.
 
 ## Known gaps, all deliberate
 

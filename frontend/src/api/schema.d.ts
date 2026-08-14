@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/internal/jobs/vms-sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pull assignments from the VMS and push queued outcomes back */
+        post: operations["vmsSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/jobs/outbox-drain": {
         parameters: {
             query?: never;
@@ -135,6 +152,23 @@ export interface paths {
         put?: never;
         /** Set a password, consume the invitation and sign in */
         post: operations["accept"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integrations/messages/{id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Put a failed or dead-lettered push back in the queue */
+        post: operations["retry"];
         delete?: never;
         options?: never;
         head?: never;
@@ -508,6 +542,23 @@ export interface paths {
         };
         /** Describe an invitation without consuming it */
         get: operations["preview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/integrations/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Every message exchanged with the VMS, newest first */
+        get: operations["messages"];
         put?: never;
         post?: never;
         delete?: never;
@@ -983,6 +1034,26 @@ export interface components {
             usable: boolean;
             unusableReason?: string | null;
         };
+        IntegrationMessageRecord: {
+            /** Format: uuid */
+            id: string;
+            direction: string;
+            targetSystem: string;
+            messageType: string;
+            externalRef?: string | null;
+            /** Format: uuid */
+            supplierId?: string | null;
+            supplierLegalName?: string | null;
+            payload: string;
+            status: string;
+            /** Format: int32 */
+            attempts: number;
+            lastError?: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            processedAt?: string | null;
+        };
         ReviewQueueItem: {
             /** Format: uuid */
             submissionId: string;
@@ -1066,6 +1137,28 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    vmsSync: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
     outboxDrain: {
         parameters: {
             query?: never;
@@ -1279,6 +1372,26 @@ export interface operations {
                 content: {
                     "*/*": components["schemas"]["SessionDescription"];
                 };
+            };
+        };
+    };
+    retry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -1788,6 +1901,26 @@ export interface operations {
                 };
                 content: {
                     "*/*": components["schemas"]["InvitationPreview"];
+                };
+            };
+        };
+    };
+    messages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "*/*": components["schemas"]["IntegrationMessageRecord"][];
                 };
             };
         };

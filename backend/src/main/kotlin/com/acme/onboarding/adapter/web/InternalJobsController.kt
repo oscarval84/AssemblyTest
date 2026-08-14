@@ -4,6 +4,8 @@ import com.acme.onboarding.application.compliance.ComplianceSweepService
 import com.acme.onboarding.application.compliance.SweepResult
 import com.acme.onboarding.application.notification.DrainResult
 import com.acme.onboarding.application.notification.OutboxDrainService
+import com.acme.onboarding.application.vms.VmsSyncResult
+import com.acme.onboarding.application.vms.VmsSyncService
 import com.acme.onboarding.application.support.AuthenticationException
 import com.acme.onboarding.config.AcmeProperties
 import io.swagger.v3.oas.annotations.Operation
@@ -29,6 +31,7 @@ import java.security.MessageDigest
 class InternalJobsController(
     private val sweep: ComplianceSweepService,
     private val drain: OutboxDrainService,
+    private val vms: VmsSyncService,
     private val properties: AcmeProperties,
 ) {
 
@@ -44,6 +47,21 @@ class InternalJobsController(
     fun outboxDrain(request: HttpServletRequest): DrainResult {
         authorize(request)
         return drain.drain()
+    }
+
+    /**
+     * Pull and push in one job.
+     *
+     * The integration outbox drains here rather than on a fourth scheduled job:
+     * Cloud Scheduler's always-free allowance is three, and this is the third.
+     */
+    @PostMapping("/vms-sync")
+    @Operation(summary = "Pull assignments from the VMS and push queued outcomes back")
+    fun vmsSync(request: HttpServletRequest): Map<String, Any> {
+        authorize(request)
+        val pulled: VmsSyncResult = vms.sync()
+        val pushed = vms.drain()
+        return mapOf("pulled" to pulled, "pushed" to pushed)
     }
 
     /**

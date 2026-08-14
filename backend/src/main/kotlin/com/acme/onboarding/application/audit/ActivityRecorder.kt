@@ -133,5 +133,12 @@ object AuditAction {
     const val DOCUMENT_EXPIRING_SOON = "DOCUMENT_EXPIRING_SOON"
     const val DOCUMENT_EXPIRED = "DOCUMENT_EXPIRED"
 
+    /**
+     * Data leaving the system is an audit event regardless of where it goes —
+     * the same treatment an external AI processor gets.
+     */
+    const val VMS_UPDATE_SENT = "VMS_UPDATE_SENT"
+    const val VMS_CONFLICT_RAISED = "VMS_CONFLICT_RAISED"
+
     const val DEMO_DATA_RESET = "DEMO_DATA_RESET"
 }

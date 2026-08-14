@@ -10,6 +10,7 @@ import {
   type DemoInfo,
   type InvitationPreview,
   type ExpiringDocument,
+  type IntegrationMessage,
   type OutboxView,
   type ProfileBody,
   type ProgramRecord,
@@ -46,6 +47,7 @@ export const keys = {
   outbox: ['outbox'] as const,
   staff: ['staff-users'] as const,
   expirations: ['expirations'] as const,
+  integrations: ['integration-messages'] as const,
   accessHistory: (id: string) => ['access-history', id] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
@@ -346,6 +348,26 @@ export function useExpirations(withinDays = 60): UseQueryResult<ExpiringDocument
     queryKey: [...keys.expirations, withinDays],
     queryFn: async () =>
       unwrap(await api.GET('/api/compliance/expirations', { params: { query: { withinDays } } })),
+  })
+}
+
+export function useIntegrationMessages(): UseQueryResult<IntegrationMessage[]> {
+  return useQuery({
+    queryKey: keys.integrations,
+    // The sync runs on a schedule, so this screen goes stale on its own.
+    refetchInterval: 30_000,
+    queryFn: async () => unwrap(await api.GET('/api/integrations/messages')),
+  })
+}
+
+export function useRetryIntegrationMessage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) =>
+      unwrap(await api.POST('/api/integrations/messages/{id}/retry', { params: { path: { id } } })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.integrations })
+    },
   })
 }
 

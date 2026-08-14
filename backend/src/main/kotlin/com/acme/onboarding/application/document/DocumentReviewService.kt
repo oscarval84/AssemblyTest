@@ -12,6 +12,8 @@ import com.acme.onboarding.application.audit.AuditAction
 import com.acme.onboarding.application.notification.Notifier
 import com.acme.onboarding.application.onboarding.StageProgression
 import com.acme.onboarding.application.supplier.SupplierAssembler
+import com.acme.onboarding.application.vms.OnboardingUpdate
+import com.acme.onboarding.application.vms.VmsSyncService
 import com.acme.onboarding.application.support.InvalidRequestException
 import com.acme.onboarding.application.support.NotFoundException
 import com.acme.onboarding.domain.compliance.SubmissionStatus
@@ -68,6 +70,7 @@ class DocumentReviewService(
     private val progression: StageProgression,
     private val notifier: Notifier,
     private val recorder: ActivityRecorder,
+    private val vms: VmsSyncService,
     private val clock: Clock,
 ) {
 
@@ -197,6 +200,28 @@ class DocumentReviewService(
             .forEach { enrollments.activate(it.id) }
 
         val supplier = suppliers.findById(supplierId)!!
+
+        // The VMS owns the supplier relationship, and this is the outcome it has
+        // been waiting for. Queued in this transaction, so it cannot describe an
+        // activation that rolled back — and skipped entirely for a supplier that
+        // never came from the VMS, because this tool does not invent records in
+        // someone else's system of record.
+        vms.externalSupplierId(supplierId)?.let { externalId ->
+            vms.enqueue(
+                supplierId = supplierId,
+                update = OnboardingUpdate.SupplierActivated(
+                    externalSupplierId = externalId,
+                    legalName = supplier.legalName,
+                    activatedOn = LocalDate.now(clock),
+                    satisfiedRequirements = snapshot.current
+                        .filter { it.status == SubmissionStatus.APPROVED }
+                        .map { it.documentTypeCode }
+                        .distinct()
+                        .sorted(),
+                ),
+            )
+        }
+
         recipients(supplierId, supplier.primaryContactEmail, supplier.primaryContactName)
             .forEach { (email, name) ->
                 notifier.onboardingCompleted(
