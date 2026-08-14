@@ -221,6 +221,11 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **The demo reset does not work on the deployed instance, and that is the control working.** It clears
+  the world with `TRUNCATE ... CASCADE`, which reaches `activity_event` through its actor foreign key,
+  and `V2` limits the application's role there to `SELECT` and `INSERT`. It used to surface as a 500;
+  it now checks `has_table_privilege` up front and answers in a sentence. Granting the privilege would
+  have made the button work and made the memo's promise to Dana false, which is the wrong trade.
 - **A trailing newline on the API key put the key into the logs.** Pasting a secret and pressing Enter
   before `Ctrl-D` stores it with a `\n`; the SDK then throws `Unexpected char 0x0a in X-Api-Key value`,
   and that exception **quotes the key in its message**, so logging the throwable wrote a live credential

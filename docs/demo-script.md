@@ -7,8 +7,14 @@ arrives, gets stuck, gets unstuck, and leaves a trail Dana can hand to an audito
 **No code tour.** Nothing in the first ten minutes shows a file, a schema or a terminal.
 
 Run it against **https://assemblytest.web.app**. Every account uses `Onboarding2026!`, and the
-sign-in screen lists them, so nobody is stuck at the door. To rewind between takes, sign in as Dana
-and use **Reset the demo data** in the account menu.
+sign-in screen lists them, so nobody is stuck at the door.
+
+**Rewinding is local-only, on purpose.** *Reset the demo data* clears the world by truncating, which
+reaches the activity log — and the deployed application's database role may append to that table and
+nothing else. On the deployed instance the button explains that rather than doing it. Recreating the
+database is the way to rewind there; the demo seeds itself on an empty one. Locally the reset works
+normally. If you want it as a beat in the recording, it is a good one: an admin being told the
+system will not erase its own audit trail is the compliance story demonstrating itself.
 
 ---
 

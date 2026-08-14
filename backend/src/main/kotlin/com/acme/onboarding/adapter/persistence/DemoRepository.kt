@@ -32,15 +32,30 @@ class DemoRepository(private val db: JdbcClient) {
             .toInt() == 0
 
     /**
+     * Whether this database will let the application clear the demo world.
+     *
+     * Asked in advance because the answer is usually no in a deployed
+     * environment, and because "no" deserves a sentence rather than a failed
+     * statement halfway through. [truncateOperationalData] cascades into
+     * `activity_event` through its actor foreign key, and `V2` restricts the
+     * application's role on that table to `SELECT` and `INSERT`. The reset
+     * failing there is the audit-log control working, not a fault.
+     */
+    fun canClearOperationalData(): Boolean =
+        db.sql("SELECT has_table_privilege(current_user, 'activity_event', 'TRUNCATE')")
+            .query(java.lang.Boolean::class.java)
+            .single()
+            .booleanValue()
+
+    /**
      * Clears the operational tables, keeping the reference data that is part of
      * the product rather than part of the demo.
      *
      * `TRUNCATE` rather than `DELETE` is not an optimisation: `activity_event`
      * carries a row-level trigger rejecting deletes, and truncation is the one
-     * path that bypasses it — deliberately, because it also requires table
-     * ownership. In a deployed environment the application's role does not own
-     * these tables, so this call fails there, which is the correct outcome for a
-     * demo-only feature.
+     * path that bypasses it. Call [canClearOperationalData] first — where the
+     * production grants are in force this statement is refused, which is the
+     * correct outcome for a demo-only feature.
      */
     fun truncateOperationalData() {
         db.sql(

@@ -11,6 +11,7 @@ import com.acme.onboarding.adapter.persistence.UserRepository
 import com.acme.onboarding.adapter.persistence.VmsLinkRepository
 import com.acme.onboarding.application.audit.ActivityRecorder
 import com.acme.onboarding.application.audit.AuditAction
+import com.acme.onboarding.application.support.InvalidRequestException
 import com.acme.onboarding.application.auth.InvitationService
 import com.acme.onboarding.application.document.DocumentStore
 import com.acme.onboarding.application.document.SignatureService
@@ -89,6 +90,19 @@ class DemoDataSeeder(
     fun reset(actor: Actor) {
         actor.requireAdmin()
         check(properties.demo.seedOnStartup) { "Demo mode is off in this environment" }
+
+        // Rewinding means clearing the activity log, and where the audit-log
+        // grants are in force the application cannot — by design, and it is the
+        // same restriction the memo describes to Dana. Refusing in words beats
+        // a half-finished truncate or a 500.
+        if (!demo.canClearOperationalData()) {
+            throw InvalidRequestException(
+                "The demo data cannot be reset in this environment, and that is the audit log working " +
+                    "as promised: rewinding would mean erasing it, and this application's database role " +
+                    "is allowed to append to that table and nothing else. To start from a clean world, " +
+                    "recreate the database — the demo seeds itself on an empty one.",
+            )
+        }
 
         demo.truncateOperationalData()
         seed()
@@ -235,7 +249,23 @@ class DemoDataSeeder(
         completeProfile(user, supplier, "LLC", "88 Cedar Way", "Providence", "RI", "02903", "401-555-0188", "27-4419902")
 
         pendingDocument(supplier, user, "W9", null, null)
-        pendingDocument(supplier, user, "CERTIFICATE_OF_INSURANCE", null, today().plusMonths(7))
+
+        // The one document in the demo world that argues with itself, and both
+        // arguments are ones Marcus has to settle. Sam typed seven months when
+        // the policy expires in five — the shape of the error that let a supplier
+        // work on lapsed cover twice. And the aggregate is USD 1M against
+        // Northstar's USD 2M, which is the rejection the demo script quotes.
+        pendingDocument(
+            supplier, user, "CERTIFICATE_OF_INSURANCE", null, today().plusMonths(7),
+            certificate = CertificateFacts(
+                insurer = "Continental Casualty Company",
+                policyNumber = "GL-4471902",
+                eachOccurrence = 1_000_000,
+                aggregate = 1_000_000,
+                effectiveOn = today().minusMonths(7),
+                printedExpiry = today().plusMonths(5),
+            ),
+        )
         pendingDocument(supplier, user, "BACKGROUND_CHECK_ATTESTATION", enrollmentFor(supplier, NORTHSTAR), today().plusMonths(11))
         sign(user, supplier, "SUPPLIER_AGREEMENT", null)
 
@@ -370,24 +400,106 @@ class DemoDataSeeder(
         )
     }
 
+    /**
+     * What a seeded certificate actually says on its face.
+     *
+     * These carry real field values rather than a placeholder page, and the
+     * reason is that the extraction feature's entire value is *disagreeing* with
+     * what a supplier typed. A page reading "this is demo data" gives it nothing
+     * to disagree with, so the one screen where the model earns its place shows
+     * a row of nulls — correct behaviour, and a demonstration of nothing.
+     *
+     * [printedExpiry] is therefore separate from the date recorded on the
+     * submission. Where the two differ the reviewer sees the disagreement and
+     * the one-click correction, which is the whole point of the feature.
+     */
+    private data class CertificateFacts(
+        val insurer: String,
+        val policyNumber: String,
+        val eachOccurrence: Long,
+        val aggregate: Long,
+        val effectiveOn: LocalDate,
+        val printedExpiry: LocalDate,
+    ) {
+        companion object {
+            /** A certificate saying exactly what the supplier typed, clearing USD 2M. */
+            fun agreeingWith(typedExpiry: LocalDate) = CertificateFacts(
+                insurer = "Continental Casualty Company",
+                policyNumber = "GL-4471902",
+                eachOccurrence = 1_000_000,
+                aggregate = 2_000_000,
+                effectiveOn = typedExpiry.minusYears(1),
+                printedExpiry = typedExpiry,
+            )
+        }
+    }
+
+    /**
+     * A certificate laid out the way a broker sends one, so the model reads
+     * fields rather than prose. Marked SPECIMEN on its face: this is seeded
+     * demonstration data and must never be mistaken for cover that exists.
+     */
+    private fun certificateLines(supplier: SupplierRecord, facts: CertificateFacts): List<String> {
+        val money = { amount: Long -> "USD " + "%,d".format(amount) }
+        return listOf(
+            "SPECIMEN - DEMONSTRATION DATA. THIS IS NOT EVIDENCE OF INSURANCE.",
+            "",
+            "CERTIFICATE OF LIABILITY INSURANCE",
+            "",
+            "PRODUCER",
+            "  Harbor & Vale Insurance Brokers",
+            "  120 Water Street, Providence RI 02903",
+            "",
+            "INSURED",
+            "  " + supplier.legalName,
+            "",
+            "INSURER A: " + facts.insurer + "   NAIC 20443",
+            "",
+            "COVERAGES",
+            "",
+            "TYPE OF INSURANCE: Commercial General Liability",
+            "  Policy number:                " + facts.policyNumber,
+            "  Policy effective date:        " + facts.effectiveOn,
+            "  Policy expiration date:       " + facts.printedExpiry,
+            "  Each occurrence:              " + money(facts.eachOccurrence),
+            "  General aggregate:            " + money(facts.aggregate),
+            "  Products - comp/op aggregate: " + money(facts.aggregate),
+            "",
+            "WORKERS COMPENSATION AND EMPLOYERS LIABILITY",
+            "  Included. Statutory limits.",
+            "",
+            "CERTIFICATE HOLDER",
+            "  Acme Inc.",
+            "  400 Market Street, Boston MA 02108",
+            "",
+            "AUTHORIZED REPRESENTATIVE",
+            "  Signed: M. Vale",
+        )
+    }
+
     private fun pendingDocument(
         supplier: SupplierRecord,
         uploader: Actor,
         typeCode: String,
         enrollmentId: UUID?,
         expiresOn: LocalDate?,
+        certificate: CertificateFacts? = null,
     ): UUID {
         val type = catalog.documentTypeByCode(typeCode)!!
         val pdf = renderer.render(
             title = "${type.name} — ${supplier.legalName}",
-            lines = listOf(
-                "This is seeded demo data, not a real ${type.name.lowercase()}.",
-                "",
-                "Company: ${supplier.legalName}",
-                "Document type: ${type.name} (${type.code})",
-                "Classification: ${type.classification}",
-                expiresOn?.let { "Expires: $it" } ?: "This document does not expire.",
-            ),
+            lines = if (typeCode == "CERTIFICATE_OF_INSURANCE" && expiresOn != null) {
+                certificateLines(supplier, certificate ?: CertificateFacts.agreeingWith(expiresOn))
+            } else {
+                listOf(
+                    "This is seeded demo data, not a real ${type.name.lowercase()}.",
+                    "",
+                    "Company: ${supplier.legalName}",
+                    "Document type: ${type.name} (${type.code})",
+                    "Classification: ${type.classification}",
+                    expiresOn?.let { "Expires: $it" } ?: "This document does not expire.",
+                )
+            },
         )
 
         val storageKey = "suppliers/${supplier.id}/${typeCode.lowercase()}/${UUID.randomUUID()}.pdf"
