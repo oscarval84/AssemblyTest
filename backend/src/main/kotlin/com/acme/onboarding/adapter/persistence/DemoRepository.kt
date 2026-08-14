@@ -6,8 +6,30 @@ import org.springframework.stereotype.Repository
 @Repository
 class DemoRepository(private val db: JdbcClient) {
 
+    /**
+     * Whether this database has anyone who can sign in.
+     *
+     * The question the seeder actually needs answered, and it is deliberately
+     * not `count(*) FROM app_user`. That was the original check and it silently
+     * stopped working the moment `V6__vms_integration.sql` began inserting the
+     * integration's own service account: every freshly migrated database then
+     * had one row, the seeder decided the world was already populated, and the
+     * app came up with no suppliers and no working logins. It was invisible
+     * locally — those databases had been seeded before V6 existed — and it only
+     * appeared on the first clean deploy, which is also what an evaluator gets
+     * from `docker compose up`.
+     *
+     * `password_hash IS NOT NULL` is the durable form of the question. The VMS
+     * account is created with no password on purpose so it can never
+     * authenticate, so it is exactly the row that should not count here, and any
+     * future service account created the same way is handled without touching
+     * this query.
+     */
     fun isEmpty(): Boolean =
-        db.sql("SELECT count(*) FROM app_user").query(Integer::class.java).single().toInt() == 0
+        db.sql("SELECT count(*) FROM app_user WHERE password_hash IS NOT NULL")
+            .query(Integer::class.java)
+            .single()
+            .toInt() == 0
 
     /**
      * Clears the operational tables, keeping the reference data that is part of
