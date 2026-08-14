@@ -31,6 +31,7 @@ export type ReviewQueueItem = Schemas['ReviewQueueItem']
 export type RejectionReason = Schemas['RejectionReasonRecord']
 export type OutboxView = Schemas['OutboxView']
 export type OutboxEntry = Schemas['OutboxEntry']
+export type StaffUser = Schemas['StaffUserView']
 
 export type RequirementState = ChecklistEntry['state']
 export type Role = Session['role']
@@ -42,13 +43,22 @@ export type Role = Session['role']
  * the request came from a page on this origin rather than from any site that can
  * make the browser send a cookie.
  */
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS', 'TRACE'])
+
 const csrfMiddleware: Middleware = {
   async onRequest({ request }) {
-    if (request.method !== 'GET' && request.method !== 'HEAD') {
-      const token = readCookie('XSRF-TOKEN')
-      if (token) request.headers.set('X-XSRF-TOKEN', token)
-    }
-    return request
+    if (SAFE_METHODS.has(request.method.toUpperCase())) return request
+
+    const token = readCookie('XSRF-TOKEN')
+    if (!token) return request
+
+    // A new Request rather than a mutated one: the object handed to middleware
+    // may carry immutable headers depending on how it was constructed, and a
+    // silently dropped CSRF header fails as a 403 that looks like an
+    // authorization bug rather than a missing header.
+    const headers = new Headers(request.headers)
+    headers.set('X-XSRF-TOKEN', token)
+    return new Request(request, { headers })
   },
 }
 

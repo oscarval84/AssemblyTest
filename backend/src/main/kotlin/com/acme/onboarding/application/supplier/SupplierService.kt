@@ -7,9 +7,11 @@ import com.acme.onboarding.adapter.persistence.EnrollmentRepository
 import com.acme.onboarding.adapter.persistence.SupplierProfileUpdate
 import com.acme.onboarding.adapter.persistence.SupplierRecord
 import com.acme.onboarding.adapter.persistence.SupplierRepository
+import com.acme.onboarding.adapter.persistence.UserRecord
 import com.acme.onboarding.adapter.persistence.UserRepository
 import com.acme.onboarding.application.audit.ActivityRecorder
 import com.acme.onboarding.application.audit.AuditAction
+import com.acme.onboarding.application.auth.AuthenticationService
 import com.acme.onboarding.application.auth.InvitationService
 import com.acme.onboarding.application.onboarding.StageProgression
 import com.acme.onboarding.application.support.InvalidRequestException
@@ -18,6 +20,7 @@ import com.acme.onboarding.domain.onboarding.OnboardingStage
 import com.acme.onboarding.domain.user.AccessDeniedException
 import com.acme.onboarding.domain.user.Actor
 import com.acme.onboarding.domain.user.Role
+import com.acme.onboarding.domain.user.UserStatus
 import org.springframework.security.crypto.encrypt.BytesEncryptor
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -57,6 +60,7 @@ class SupplierService(
     private val events: ActivityEventRepository,
     private val assembler: SupplierAssembler,
     private val invitations: InvitationService,
+    private val authentication: AuthenticationService,
     private val progression: StageProgression,
     private val recorder: ActivityRecorder,
     private val fieldEncryptor: BytesEncryptor,
@@ -172,6 +176,69 @@ class SupplierService(
     @Transactional
     fun inviteUser(actor: Actor, supplierId: UUID, email: String, fullName: String): UUID =
         invitations.inviteSupplierUser(actor, supplierId, email, fullName)
+
+    /**
+     * Ends one supplier user's access, from inside that supplier's record.
+     *
+     * The binding check below is the whole control. Without it this endpoint
+     * would be a second, unguarded route to deactivating an Acme staff account —
+     * reachable by ops rather than by an admin — which is exactly what keeping
+     * the two administration surfaces apart is meant to prevent.
+     */
+    @Transactional
+    fun deactivateUser(actor: Actor, supplierId: UUID, userId: UUID) {
+        val user = supplierUser(actor, supplierId, userId)
+
+        users.updateStatus(userId, UserStatus.DEACTIVATED)
+        val revoked = authentication.revokeAllSessions(userId)
+
+        recorder.record(
+            action = AuditAction.USER_DEACTIVATED,
+            subjectType = "USER",
+            subjectId = userId,
+            actor = actor,
+            supplierId = supplierId,
+            before = mapOf("status" to user.status.name),
+            after = mapOf("status" to UserStatus.DEACTIVATED.name, "sessionsRevoked" to revoked),
+        )
+    }
+
+    @Transactional
+    fun reactivateUser(actor: Actor, supplierId: UUID, userId: UUID) {
+        val user = supplierUser(actor, supplierId, userId)
+
+        // Someone who never set a password goes back to INVITED rather than
+        // ACTIVE, or reactivation leaves an account nobody can sign in to and
+        // nothing flags as incomplete.
+        val restored = if (user.passwordHash == null) UserStatus.INVITED else UserStatus.ACTIVE
+        users.updateStatus(userId, restored)
+
+        recorder.record(
+            action = AuditAction.USER_REACTIVATED,
+            subjectType = "USER",
+            subjectId = userId,
+            actor = actor,
+            supplierId = supplierId,
+            before = mapOf("status" to user.status.name),
+            after = mapOf("status" to restored.name),
+        )
+    }
+
+    private fun supplierUser(actor: Actor, supplierId: UUID, userId: UUID): UserRecord {
+        actor.requireOps()
+        visibleSnapshot(actor, supplierId)
+
+        val user = users.findById(userId)
+            ?: throw NotFoundException("That user no longer exists.")
+
+        if (user.role != Role.SUPPLIER_USER || user.supplierId != supplierId) {
+            throw AccessDeniedException(
+                "That account does not belong to this supplier. Acme staff are managed from " +
+                    "staff administration.",
+            )
+        }
+        return user
+    }
 
     /**
      * Saves the company profile.

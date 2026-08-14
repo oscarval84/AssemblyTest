@@ -147,6 +147,18 @@ class SupplierController(
     fun inviteUser(@PathVariable id: UUID, @Valid @RequestBody body: InviteUserBody): Map<String, UUID> =
         mapOf("userId" to suppliers.inviteUser(CurrentActor.require(), id, body.email, body.fullName))
 
+    @PostMapping("/{id}/users/{userId}/deactivate")
+    @Operation(summary = "End one supplier user's access, immediately")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deactivateUser(@PathVariable id: UUID, @PathVariable userId: UUID) =
+        suppliers.deactivateUser(CurrentActor.require(), id, userId)
+
+    @PostMapping("/{id}/users/{userId}/reactivate")
+    @Operation(summary = "Restore a deactivated supplier user")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun reactivateUser(@PathVariable id: UUID, @PathVariable userId: UUID) =
+        suppliers.reactivateUser(CurrentActor.require(), id, userId)
+
     /**
      * Multipart rather than JSON with a base64 field: a 10 MB certificate would
      * be a 13 MB string, and the request would be held in memory twice.

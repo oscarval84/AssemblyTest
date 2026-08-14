@@ -25,6 +25,7 @@ const OpsSuppliers = lazy(() => import('./features/ops/SuppliersPage'))
 const OpsSupplierDetail = lazy(() => import('./features/ops/SupplierDetailPage'))
 const OpsReviewQueue = lazy(() => import('./features/ops/ReviewQueuePage'))
 const OpsOutbox = lazy(() => import('./features/ops/OutboxPage'))
+const OpsStaffAdmin = lazy(() => import('./features/ops/StaffAdminPage'))
 
 export default function App() {
   return (
@@ -65,6 +66,7 @@ export default function App() {
                 { label: 'Pipeline', to: '/ops' },
                 { label: 'Review queue', to: '/ops/review', roles: ['OPS', 'ADMIN'] },
                 { label: 'Notifications', to: '/ops/outbox', roles: ['OPS', 'ADMIN'] },
+                { label: 'Staff access', to: '/ops/admin/users', roles: ['ADMIN'] },
               ]}
             />
           }
@@ -72,6 +74,7 @@ export default function App() {
           <Route path="/ops" element={<OpsSuppliers />} />
           <Route path="/ops/review" element={<OpsReviewQueue />} />
           <Route path="/ops/outbox" element={<OpsOutbox />} />
+          <Route path="/ops/admin/users" element={<OpsStaffAdmin />} />
           <Route path="/ops/suppliers/:id" element={<OpsSupplierDetail />} />
         </Route>
 

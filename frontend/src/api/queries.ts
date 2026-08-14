@@ -14,6 +14,7 @@ import {
   type ProgramRecord,
   type RejectionReason,
   type ReviewQueueItem,
+  type StaffUser,
   type Session,
   type SupplierDetail,
   type SupplierProfile,
@@ -42,6 +43,8 @@ export const keys = {
   reviewQueue: ['review-queue'] as const,
   rejectionReasons: ['rejection-reasons'] as const,
   outbox: ['outbox'] as const,
+  staff: ['staff-users'] as const,
+  accessHistory: (id: string) => ['access-history', id] as const,
   agreement: (supplierId: string, code: string) => ['agreement', supplierId, code] as const,
 }
 
@@ -334,6 +337,124 @@ export function useReviewDecision(supplierId: string) {
       void queryClient.invalidateQueries({ queryKey: keys.outbox })
     },
   })
+}
+
+export function useStaffUsers(enabled = true): UseQueryResult<StaffUser[]> {
+  return useQuery({
+    queryKey: keys.staff,
+    enabled,
+    queryFn: async () => unwrap(await api.GET('/api/admin/users')),
+  })
+}
+
+export function useAccessHistory(userId: string | undefined): UseQueryResult<ActivityRow[]> {
+  return useQuery({
+    queryKey: keys.accessHistory(userId ?? ''),
+    enabled: Boolean(userId),
+    queryFn: async () =>
+      unwrap(await api.GET('/api/admin/users/{id}/access-history', { params: { path: { id: userId! } } })),
+  })
+}
+
+/**
+ * Every staff administration action, behind one mutation.
+ *
+ * They share an invalidation because they share a consequence: a role or scope
+ * change takes effect on the target's next request, so the screen that made it
+ * must not keep showing the access they no longer have.
+ */
+export function useStaffAdministration() {
+  const queryClient = useQueryClient()
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.staff })
+    void queryClient.invalidateQueries({ queryKey: ['access-history'] })
+  }
+
+  const invite = useMutation({
+    mutationFn: async (body: {
+      email: string
+      fullName: string
+      role: 'ADMIN' | 'OPS' | 'PROGRAM_MANAGER'
+      programIds: string[]
+    }) => unwrap(await api.POST('/api/admin/users/invite', { body })),
+    onSuccess: refresh,
+  })
+
+  const changeRole = useMutation({
+    mutationFn: async (input: { userId: string; role: 'ADMIN' | 'OPS' | 'PROGRAM_MANAGER' }) =>
+      unwrap(
+        await api.PATCH('/api/admin/users/{id}/role', {
+          params: { path: { id: input.userId } },
+          body: { role: input.role },
+        }),
+      ),
+    onSuccess: refresh,
+  })
+
+  const setProgramScope = useMutation({
+    mutationFn: async (input: { userId: string; programIds: string[] }) =>
+      unwrap(
+        await api.PATCH('/api/admin/users/{id}/programs', {
+          params: { path: { id: input.userId } },
+          body: { programIds: input.programIds },
+        }),
+      ),
+    onSuccess: refresh,
+  })
+
+  const setStatus = useMutation({
+    mutationFn: async (input: { userId: string; active: boolean }) => {
+      const path = input.active ? '/api/admin/users/{id}/reactivate' : '/api/admin/users/{id}/deactivate'
+      return unwrap(await api.POST(path, { params: { path: { id: input.userId } } }))
+    },
+    onSuccess: refresh,
+  })
+
+  const sendReset = useMutation({
+    mutationFn: async (userId: string) =>
+      unwrap(await api.POST('/api/admin/users/{id}/reset-password', { params: { path: { id: userId } } })),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: keys.outbox })
+    },
+  })
+
+  return { invite, changeRole, setProgramScope, setStatus, sendReset }
+}
+
+/** Supplier user management: a different surface, a different role, on purpose. */
+export function useSupplierUserAdministration(supplierId: string) {
+  const queryClient = useQueryClient()
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: keys.supplierUsers(supplierId) })
+    void queryClient.invalidateQueries({ queryKey: keys.activity(supplierId) })
+    void queryClient.invalidateQueries({ queryKey: keys.outbox })
+  }
+
+  const invite = useMutation({
+    mutationFn: async (body: { email: string; fullName: string }) =>
+      unwrap(
+        await api.POST('/api/suppliers/{id}/users/invite', {
+          params: { path: { id: supplierId } },
+          body,
+        }),
+      ),
+    onSuccess: refresh,
+  })
+
+  const setStatus = useMutation({
+    mutationFn: async (input: { userId: string; active: boolean }) => {
+      const path = input.active
+        ? '/api/suppliers/{id}/users/{userId}/reactivate'
+        : '/api/suppliers/{id}/users/{userId}/deactivate'
+      return unwrap(
+        await api.POST(path, { params: { path: { id: supplierId, userId: input.userId } } }),
+      )
+    },
+    onSuccess: refresh,
+  })
+
+  return { invite, setStatus }
 }
 
 export function documentDownloadUrl(submissionId: string): string {
