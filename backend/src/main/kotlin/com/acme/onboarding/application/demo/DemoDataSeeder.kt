@@ -11,6 +11,7 @@ import com.acme.onboarding.adapter.persistence.UserRepository
 import com.acme.onboarding.adapter.persistence.VmsLinkRepository
 import com.acme.onboarding.application.audit.ActivityRecorder
 import com.acme.onboarding.application.audit.AuditAction
+import com.acme.onboarding.application.criteria.CriteriaReviewService
 import com.acme.onboarding.application.support.InvalidRequestException
 import com.acme.onboarding.application.auth.InvitationService
 import com.acme.onboarding.application.document.DocumentStore
@@ -63,6 +64,7 @@ class DemoDataSeeder(
     private val progression: StageProgression,
     private val notifier: Notifier,
     private val recorder: ActivityRecorder,
+    private val criteriaReview: CriteriaReviewService,
     private val store: DocumentStore,
     private val renderer: SimpleDocumentRenderer,
     private val passwordEncoder: PasswordEncoder,
@@ -119,6 +121,7 @@ class DemoDataSeeder(
     private fun seed() {
         val programs = seedPrograms()
         val staff = seedStaff(programs.getValue(NORTHSTAR).first)
+        seedCriteria(staff, programs)
 
         seedNorthwind(staff)
         seedBeacon(staff)
@@ -126,6 +129,48 @@ class DemoDataSeeder(
         seedLakeside(staff)
         seedHarborPoint(staff)
         seedRidgeline(staff)
+    }
+
+    /**
+     * The acceptance criteria Marcus would have written, per program.
+     *
+     * These live here rather than in `V7__acceptance_criteria.sql`, and the
+     * reason is a defect that migration could not avoid: it seeded criteria by
+     * joining `program_requirement`, and the programs are created *here*, at
+     * runtime, long after Flyway has finished. On any freshly migrated database
+     * that join matched nothing, so the demo world had no criteria at all — the
+     * review dialog said "no acceptance criteria are set" for every document,
+     * and the client's own answer 2 was invisible in the product built for it.
+     *
+     * It only ever appeared to work on the original development database, where
+     * programs happened to exist before V7 ran. The same shape as the seeder
+     * that silently skipped a clean database, and found the same way: by
+     * rehearsing the demo instead of trusting that it would hold.
+     *
+     * Authored as Marcus, so the audit trail attributes them to a person and
+     * `CRITERIA_UPDATED` is in the log where a reviewer would expect it.
+     */
+    private fun seedCriteria(staff: Staff, programs: Map<String, Pair<UUID, List<String>>>) {
+        val requirements = catalog.requirementsForPrograms(programs.values.map { it.first })
+
+        requirements
+            .filter { it.documentType.code == "CERTIFICATE_OF_INSURANCE" }
+            .forEach { requirement ->
+                val minimum = (requirement.constraints["generalLiabilityMinimum"] as? Number)?.toLong()
+                    ?: return@forEach
+
+                criteriaReview.author(
+                    staff.ops,
+                    requirement.id,
+                    listOf(
+                        "The certificate holder is Acme Inc., 400 Market Street, Boston MA.",
+                        "The general liability aggregate is at least USD ${"%,d".format(minimum)}.",
+                        "Workers' compensation coverage is present and unexpired.",
+                        "The policy expiry date is at least 30 days after today.",
+                        "The certificate is signed by an authorised representative of the insurer.",
+                    ),
+                )
+            }
     }
 
     // -- reference world ------------------------------------------------------

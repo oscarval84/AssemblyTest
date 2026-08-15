@@ -221,6 +221,16 @@ deploy.
 
 ## Known gaps, all deliberate
 
+- **The demo world had no acceptance criteria at all, and that was worse than the missing screen.**
+  `V7__acceptance_criteria.sql` seeded them by joining `program_requirement` — a table Flyway sees
+  empty, because the programs are created by the runtime seeder long after migration. So every
+  freshly migrated database had zero criteria, every review dialog said "no acceptance criteria are
+  set for this requirement yet", and the client's own answer 2 was invisible in the product built
+  for it. It survived because the original development database happened to have programs before
+  that migration ran — the same shape as the seeder that skipped a clean database. Seeding now
+  happens in `DemoDataSeeder`, authored as Marcus so `CRITERIA_UPDATED` lands in the audit log where
+  a reviewer would expect it, and `DemoSeedTest` asserts a certificate in the queue carries the
+  criteria its rejection quotes. Found by rehearsing the demo rather than by trusting it would hold.
 - **Criteria have no authoring screen, and programs are read-only.** The client's answer 2 asked for
   reference documents plus criteria *Acme inputs*. What shipped stores, versions, evaluates and
   rejects against them, and `PUT /api/requirements/{id}/criteria` works — but no screen calls it and
