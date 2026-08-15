@@ -9,6 +9,18 @@ arrives, gets stuck, gets unstuck, and leaves a trail Dana can hand to an audito
 Run it against **https://assemblytest.web.app**. Every account uses `Onboarding2026!`, and the
 sign-in screen lists them, so nobody is stuck at the door.
 
+**Rehearsing locally? Fire the three jobs first — and again after every reset.** Cloud Scheduler
+drives them in the deployed environment; locally nothing does, so the VMS page reads *"Nothing
+exchanged yet"* and the outbox never drains. One line, and it is the difference between block 5
+having something to point at and not:
+
+```bash
+for j in vms-sync outbox-drain compliance-sweep; do curl -s -X POST http://localhost:8085/internal/jobs/$j -H "X-Job-Token: local-development-job-token"; echo; done
+```
+
+The VMS sync is the one that matters for the script: it pulls the assignments that put **Vantage
+Field Solutions** in the pipeline without anyone at Acme inviting it.
+
 **Rewinding is local-only, on purpose.** *Reset the demo data* clears the world by truncating, which
 reaches the activity log — and the deployed application's database role may append to that table and
 nothing else. On the deployed instance the button explains that rather than doing it. Recreating the
@@ -72,16 +84,38 @@ Open **Notifications**. The rejection email is there in full, as the supplier wi
 
 ---
 
-## 3. The supplier's side — *no dead ends* (1.5 min)
+## 3. The supplier's side — *no dead ends* (2 min)
 
-Sign in as **jean.pike@cedargrove.example**.
+Two sign-ins here, because they show different things. Do them in this order.
 
-- Same truth, different audience: the rejected document says what to replace and why, in Marcus's
-  words. Nothing says "contact your account manager".
-- The checklist splits **already on file** from **new for this program** — a supplier joining a
-  second program does not re-upload their W-9.
-- Open the upload dialog for an expiring document: the expiry date is asked for because it drives
-  the reminder, and the copy says so.
+**Jean Pike — the rejection lands.** Sign in as **jean.pike@cedargrove.example**.
+
+- Under *Needed for this program*, the **Certificate of Insurance** card reads **Changes
+  requested**, with *"We could not accept the last version"* and the requirement restated
+  underneath. Same truth as Marcus's screen, in his words. Nothing says "contact your account
+  manager".
+- Click **Replace** on that card. (It says Replace rather than Upload because the document exists
+  and was handed back.) The dialog is *"Send your certificate of insurance"*.
+- Point at two things and then stop: **What this program requires** is restated inside the dialog,
+  so nobody has to remember it — and **Expires on** is marked required, with *"The date printed on
+  the document"* under it.
+
+  > We ask for that date here, while they are holding the document, because it is what the reminders
+  > and the compliance status run on. It is the one field this whole system's timing depends on.
+
+- Click **Cancel**. Do not send anything — it changes the world you are demonstrating.
+
+**Alicia Moore — the reuse.** Sign in as **alicia.moore@lakesidemed.example**.
+
+- She is in **two** programs, and each one splits into **ALREADY ON FILE** and **NEEDED FOR THIS
+  PROGRAM**. The W-9, the certificate and the agreement sit under *already on file* in both; Atlas
+  needs only banking details, Northstar only the background check.
+
+  > This is the second-programme experience you described. She does not re-upload her W-9 — she sees
+  > that we already have it, approved and dated, and only the genuinely new item is asked for.
+
+*(Jean has one programme, so the reuse story cannot be told with her — that is why this beat needs
+Alicia.)*
 
 ---
 
